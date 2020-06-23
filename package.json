@@ -1,0 +1,30 @@
+{
+  "name": "jibri-queue",
+  "version": "1.0.0",
+  "description": "Implements Queues for Jibris",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=10"
+  },
+  "dependencies": {
+    "@xmpp/client": "0.11.1",
+    "@xmpp/component": "0.11.0",
+    "@xmpp/debug": "0.11.0",
+    "jsonwebtoken": "^8.5.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.9.6",
+    "@babel/preset-env": "^7.9.6",
+    "babel-loader": "^8.1.0",
+    "babel-plugin-transform-react-jsx": "^6.24.1",
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.11"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/main.js",
+    "build": "webpack"
+  },
+  "author": "Jitsi",
+  "license": "Apache-2.0"
+}

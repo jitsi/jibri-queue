@@ -29,11 +29,11 @@ You must specify the path to a `config.json` file as a first argument of the app
  - password - required. The password for the xmpp server connection.
  - resource - required. The resource for the xmpp server connection.
  - jibriMUC - required. Configuration options for the jibri status MUC:
-  - domain - required. The domain for the MUC component.
-  - room - required. The name of the MUC with jibris.
+   - domain - required. The domain for the MUC component.
+   - room - required. The name of the MUC with jibris.
  - jwt - required. Configuration options for the JWT generation.
-  - privateKeyPath - required. The path to the private key.
-  - keyid - required. The kid claim.
-  - iss - required. The iss claim.
-  - expiresIn - required. Period of time after which the JWT will expire.
+   - privateKeyPath - required. The path to the private key.
+   - keyid - required. The kid claim.
+   - iss - required. The iss claim.
+   - expiresIn - required. Period of time after which the JWT will expire.
  - debug - optional. Enable the debug log level.

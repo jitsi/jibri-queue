@@ -1,7 +1,13 @@
+// @flow
+
 /** @jsx xml */
 
+// @flow
+
+// We need xml for the jsx transformation.
+// eslint-disable-next-line no-unused-vars
+import { xml } from '@xmpp/client';
 import EventEmitter from 'events';
-import { xml } from '@xmpp/client'
 
 import { safeDecrease } from './functions';
 
@@ -19,6 +25,16 @@ export const FREE = 'idle';
  * Class that handles the jibri status updates.
  */
 export default class JibriPool extends EventEmitter {
+    _config: Object;
+    _xmpp: Object;
+    _jibris: Map<string, string>;
+    _freeJibris: number;
+    _busyJibris: number;
+    _jid: string;
+    _roomNick: string;
+    _mucJID: string;
+    _pingInterval: Object;
+
     /**
      * Creates new JibriPool instance.
      *
@@ -28,7 +44,7 @@ export default class JibriPool extends EventEmitter {
      * @param {string} config.room - The room name of the jibri brewery which we need to join to
      * listen for jibri status updates.
      */
-    constructor(client, config = {}) {
+    constructor(client: Object, config: Object = {}) {
         super();
         this._config = config;
         this._xmpp = client;
@@ -37,13 +53,12 @@ export default class JibriPool extends EventEmitter {
         this._busyJibris = 0;
         this._onError = this._onError.bind(this);
         this._onStanza = this._onStanza.bind(this);
-        this.toString = this.toString.bind(this);
         this._startPing = this._startPing.bind(this);
         this._stopPing = this._stopPing.bind(this);
         this._onMUCJoined = this._onMUCJoined.bind(this);
 
-        this._xmpp.on("error", this._onError);
-        this._xmpp.on("stanza", this._onStanza);
+        this._xmpp.on('error', this._onError);
+        this._xmpp.on('stanza', this._onStanza);
         this._xmpp.on('online', jid => {
             this._jid = jid;
             this._join();
@@ -52,8 +67,11 @@ export default class JibriPool extends EventEmitter {
 
         this._roomNick = 'jibri-queue';
         const { domain, room } = this._config;
+
         this._mucJID = `${room}@${domain}/${this._roomNick}`;
     }
+
+    _onError: Error => void;
 
     /**
      * XMPP error handler.
@@ -61,10 +79,12 @@ export default class JibriPool extends EventEmitter {
      * @param {Object} error - The error.
      * @returns {void}
      */
-    _onError(error) {
-        console.error(`${this} error:`, error);
+    _onError(error: Error) {
+        console.error(`${this.toString()} error:`, error);
         this.emit('error', error);
     }
+
+    _onStanza: Object => void;
 
     /**
      * XMPP stanza handler. Handles the status updates from the jibris.
@@ -72,7 +92,7 @@ export default class JibriPool extends EventEmitter {
      * @param {Object} stanza - The stanza that is received.
      * @returns {void}
      */
-    _onStanza(stanza) {
+    _onStanza(stanza: Object) {
         this.emit('stanza', stanza);
         if (!stanza.is('presence')) {
             return;
@@ -105,6 +125,7 @@ export default class JibriPool extends EventEmitter {
 
             console.log('jibri left');
             this.emit('left');
+
             return;
         }
 
@@ -121,6 +142,7 @@ export default class JibriPool extends EventEmitter {
         if (!busyStatusNode) {
             // This shouldn't happen.
             console.warn('Can\'t find busy-status node in jibri presence!');
+
             return;
         }
 
@@ -136,11 +158,13 @@ export default class JibriPool extends EventEmitter {
                 break;
             default:
                 console.warn('A jibri with unknown status joined', newStatus);
+
                 return;
             }
             this._jibris.set(from, newStatus);
             console.log('jibri joined', newStatus);
             this.emit('joined', newStatus);
+
             return;
         }
 
@@ -159,6 +183,7 @@ export default class JibriPool extends EventEmitter {
             break;
         default:
             console.warn('A jibri changed its status to an unknown one', newStatus);
+
             return;
         }
 
@@ -194,15 +219,18 @@ export default class JibriPool extends EventEmitter {
      */
     async _join() {
         try {
-            await this._xmpp.send(<presence
-                to = { this._mucJID }
-                xmlns="jabber:client">
-                    <x xmlns="http://jabber.org/protocol/muc"/>
+            await this._xmpp.send(
+                <presence
+                    to = { this._mucJID }
+                    xmlns = 'jabber:client'>
+                    <x xmlns = 'http://jabber.org/protocol/muc' />
                 </presence>);
         } catch (error) {
             console.error(error);
         }
     }
+
+    _onMUCJoined: () => void;
 
     /**
      * MUC joined handler.
@@ -213,7 +241,7 @@ export default class JibriPool extends EventEmitter {
         try {
             this._startPing();
         } catch (error) {
-            console.error(`${this} error:`, error);
+            console.error(`${this.toString()} error:`, error);
         }
     }
 
@@ -226,6 +254,8 @@ export default class JibriPool extends EventEmitter {
         return '[JibriMUCParticipant]';
     }
 
+    _startPing: () => void;
+
     /**
      * Starts the ping interval in order to keep the MUC connection alive.
      *
@@ -234,14 +264,20 @@ export default class JibriPool extends EventEmitter {
     _startPing() {
         this._pingInterval = setInterval(() => {
             try {
-                this._xmpp.iqCaller.request(<iq  to={this._config.domain} type="get" xmlns="jabber:client">
-                    <ping xmlns="urn:xmpp:ping"/>
-                </iq>, 30000);
-            } catch(error) {
+                this._xmpp.iqCaller.request(
+                    <iq
+                        to = { this._config.domain }
+                        type = 'get'
+                        xmlns = 'jabber:client'>
+                        <ping xmlns = 'urn:xmpp:ping' />
+                    </iq>, 30000);
+            } catch (error) {
                 console.error(error);
             }
         }, 10000);
     }
+
+    _stopPing: () => void;
 
     /**
      * Stops the ping interval.
@@ -258,10 +294,14 @@ export default class JibriPool extends EventEmitter {
      * @returns {void}
      */
     async disconnect() {
-        console.log(`${this} is disconnecting`);
+        console.log(`${(this.toString())} is disconnecting`);
         this._stopPing();
         try {
-            await this._xmpp.send(<presence from = { this._jid } to={ this._mucJID } type = 'unavailable'/>);
+            await this._xmpp.send(
+                <presence
+                    from = { this._jid }
+                    to = { this._mucJID }
+                    type = 'unavailable' />);
         } catch (error) {
             console.error(error);
         }

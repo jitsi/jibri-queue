@@ -1,12 +1,16 @@
-import path from 'path';
-import fs from 'fs';
+// @flow
+/* global process */
 
-import XMPPConnection from './XMPPConnection';
+import fs from 'fs';
+import path from 'path';
+
 import JibriPool from './JibriPool';
 import ParticipantQueue from './ParticipantQueue';
-import Queue from './Queue';
+import XMPPConnection from './XMPPConnection';
 
 // FIXME: Maybe handle failures to read the files.
+
+const config = fs.readFileSync(path.resolve(process.argv[2]));
 const {
     debug: enableDebug = false,
     service,
@@ -16,7 +20,7 @@ const {
     resource,
     jibriMUC = {},
     jwt: jwtConfig = {}
-} = JSON.parse(fs.readFileSync(path.resolve(process.argv[2])));
+} = JSON.parse(config.toString());
 const privateKey = fs.readFileSync(path.resolve(jwtConfig.privateKeyPath));
 
 const connection = new XMPPConnection({
@@ -28,6 +32,7 @@ const connection = new XMPPConnection({
     enableDebug
 });
 const jibriPool = new JibriPool(connection.nodeXmppClient, jibriMUC);
+// eslint-disable-next-line no-unused-vars
 const participantQueue = new ParticipantQueue(connection, jibriPool, {
     jwtConfig: {
         ...jwtConfig,

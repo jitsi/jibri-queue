@@ -1,21 +1,35 @@
+// @flow
+
+import JibriPool, { BUSY, FREE } from './JibriPool';
 import Queue from './Queue';
+import XMPPConnection from './XMPPConnection';
 import { safeDecrease, getToken } from './functions';
-import { BUSY, FREE } from './JibriPool';
 
 /**
  * A class that handles the whole logic around the queue with participants.
  */
 export default class ParticipantQueue {
+    _pendingUsers: number;
+    _participantQueue: Queue<string>;
+    _connection: XMPPConnection;
+    _timeoutQueue: Queue<TimeoutID>;
+    _jibriPool: JibriPool;
+    _jwtConfig: Object;
+
     /**
+     * Creates a new ParticipantQueue instance.
      *
      * @param {XMPPConnection} connection - The XMPPConnection instance that will be used for communication.
      * @param {JibriPool} jibriPool - The Jibri Pool instance that will be used to monitor the status of the jibris.
-     * @param {Object} options
+     * @param {Object} options - Options objects.
      * @param {Array<string>} optional.elements - Optional arrays with jids of users in the queue for initialization.
      * Currently not used. May be usefull if we start using DB for the users in the queue.
      * @param {Object} options.jwtConfig - JWT config options.
      */
-    constructor(connection, jibriPool, { elements, jwtConfig }) {
+    constructor(connection: XMPPConnection, jibriPool: JibriPool, {
+        elements,
+        jwtConfig
+    }: Object) {
         // NOTE: If we want to restore the state from a DB or something in the future,
         // we need to store _pendingUsers and _participantQueue there!
         this._pendingUsers = 0;
@@ -44,16 +58,20 @@ export default class ParticipantQueue {
         connection.on('user-joined', this._onUserJoined);
     }
 
+    _onJibriJoined: () => void;
+
     /**
      * Jibri joined handler.
      *
      * @returns {void}
      */
     _onJibriJoined() {
-        if(this._haveAvailableJibri()) {
+        if (this._haveAvailableJibri()) {
             this._sendTokenToUser();
         }
     }
+
+    _onJibriStatusChanged: string => void;
 
     /**
      * Jibri status changed handler.
@@ -61,7 +79,7 @@ export default class ParticipantQueue {
      * @param {string} status - The new jibri status.
      * @returns {void}
      */
-    _onJibriStatusChanged(status) {
+    _onJibriStatusChanged(status: string) {
         switch (status) {
         case BUSY:
             if (this._pendingUsers > 0) {
@@ -83,14 +101,17 @@ export default class ParticipantQueue {
 
             break;
         case FREE:
-            if(this._haveAvailableJibri()) {
+            if (this._haveAvailableJibri()) {
                 this._sendTokenToUser();
             }
             break;
         default:
+
             // This shouldn't happen!
         }
     }
+
+    _haveAvailableJibri: () => number;
 
     /**
      * Checks if there is available jibri.
@@ -120,30 +141,36 @@ export default class ParticipantQueue {
         const user = this._participantQueue.removeAt(0);
 
         let token;
+
         try {
             token = await getToken(this._jwtConfig);
-        }  catch (e) {
+        } catch (e) {
             console.error('Error while generating the token!', e);
+
             // FIXME: What to do in this case! Maybe inform the users and exit with error!
             return;
         }
+
+        // $FlowIssue: on the first line we check for the size of the queue.
         const success = await this._connection.sendJWT(user, token);
 
-        if (!success) {
+        if (success) {
+            const tokenTimeout = this._jwtConfig.expiresIn * 1000;
+
+            // We need to wait for tokenTimeout ms and if a jibri haven't switched states we can remove 1 from
+            // _pendingUsers because the token will expire anyway and the user won't be able to use a jibri.
+            this._timeoutQueue.push(setTimeout(() => {
+                this._pendingUsers = safeDecrease(this._pendingUsers);
+            }, tokenTimeout));
+        } else {
             // FIXME: Maybe check if this is client error and mark as pending. If a malicious client replies with error
             // and in the same time uses the token our pending logic will brake and we may issue more tokens then
             // the number of available jibris at the moment.
             this._pendingUsers = safeDecrease(this._pendingUsers);
-        } else {
-            const tokenTimeout = this._jwtConfig.expiresIn * 1000;
-
-            // We need to wait for tokenTimeout ms and if a jibri haven't switched states we can remove 1 from _pendingUsers
-            // because the token will expire anyway and the user won't be able to use a jibri.
-            this._timeoutQueue.push(setTimeout(() => {
-                this._pendingUsers = safeDecrease(this._pendingUsers);
-            }, tokenTimeout));
         }
     }
+
+    _onUserJoined: string => void;
 
     /**
      * Handles new users joining the queue.
@@ -151,7 +178,7 @@ export default class ParticipantQueue {
      * @param {string} jid - The jid of the user.
      * @returns {void}
      */
-    _onUserJoined(jid) {
+    _onUserJoined(jid: string) {
         if (this._participantQueue.has(jid)) {
             return;
         }
@@ -167,7 +194,7 @@ export default class ParticipantQueue {
                 console.error(e);
             });
 
-        if(this._haveAvailableJibri()) {
+        if (this._haveAvailableJibri()) {
             this._sendTokenToUser();
         }
     }
@@ -178,13 +205,14 @@ export default class ParticipantQueue {
      * @param {number} index - The starting index.
      * @returns {void}
      */
-    async _updateUserInfoFrom(index = 0) {
+    async _updateUserInfoFrom(index: number = 0) {
         const size = this._participantQueue.size;
         let participantToBeRemoved;
 
         for (let i = index; i < size; i++) {
             const user = this._participantQueue.getAt(i);
-            if (typeof user === 'undefined') {
+
+            if (typeof user !== 'string') {
                 // since _updateUserInfoFrom is async, probably in meantime an element was removed.
                 break;
             }
@@ -192,6 +220,7 @@ export default class ParticipantQueue {
                 position: i + 1,
                 time: 0 // FIXME: time estimation
             });
+
             if (!success) {
                 // Error while sending the user info. We assume the user left.
                 participantToBeRemoved = i;
@@ -210,7 +239,7 @@ export default class ParticipantQueue {
      * @param {number} index - The index of the user to be removed.
      * @returns {string} - The jid of the user.
      */
-    removeAt(index) {
+    removeAt(index: number) {
         const user = this._participantQueue.removeAt(index);
 
         if (typeof user !== 'undefined') { // Makes sure we actually removed an user!
@@ -232,19 +261,21 @@ export default class ParticipantQueue {
 
     /**
      * Removes a user from the queue based on the passed jid.
+     *
      * @param {string} jid - The jid of the user.
      * @returns {void}
      */
-    remove(jid) {
+    remove(jid: string) {
         const index = this._participantQueue.remove(jid);
 
-        if (typeof index !== 'undefined') {
+        if (typeof index === 'number') {
             this._updateUserInfoFrom(index)
                 .catch(e => {
                     // We don't expect any errors. But I'm adding catch just in case!
                     console.error(e);
                 });
         }
+
         // else {} // no elements were removed.
     }
 }

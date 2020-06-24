@@ -1,13 +1,18 @@
+// @flow
+
 /**
  * A queue utility class.
  */
-export default class Queue {
+export default class Queue<T> {
+
+    _elements: Array<T>;
+
     /**
      * Creates a new Queue instance.
      *
      * @param {Array<*>} [elements] - Optional array of elements that will be used for initialization.
      */
-    constructor(elements = []) {
+    constructor(elements: Array<T> = []) {
         this._elements = elements;
     }
 
@@ -15,8 +20,9 @@ export default class Queue {
      * Adds new element to the tail of the queue.
      *
      * @param {*} element - The new element to be added.
+     * @returns {void}
      */
-    push(element) {
+    push(element: T) {
         this._elements.push(element);
     }
 
@@ -26,10 +32,11 @@ export default class Queue {
      * @param {number} index - The index of the element in the queue.
      * @returns {*} - The requested element.
      */
-    getAt(index) {
+    getAt(index: number): ?T {
         if (index >= this.size) {
             return undefined;
         }
+
         return this._elements[index];
     }
 
@@ -38,7 +45,7 @@ export default class Queue {
      *
      * @returns {*} - The first element.
      */
-    get head() {
+    get head(): T {
         return this._elements[0];
     }
 
@@ -48,7 +55,7 @@ export default class Queue {
      * @param {*} element - The element we are looking for.
      * @returns {boolean} - True if the element is in the queue and false otherwise.
      */
-    has(element) {
+    has(element: T): boolean {
         return this.find(element) !== -1;
     }
 
@@ -58,7 +65,7 @@ export default class Queue {
      * @param {*} element - The element we are looking for.
      * @returns {number} - The index of the element in the queue or -1 if the element wasn't found.
      */
-    find(element) {
+    find(element: T): number {
         return this._elements.findIndex(e => e === element);
     }
 
@@ -68,7 +75,7 @@ export default class Queue {
      * @param {*} element - The element to be removed.
      * @returns {number|undefined} - The index of the removed element or undefined if nothing was removed.
      */
-    remove(element) {
+    remove(element: T): ?number {
         const index = this.find(element);
 
         if (index === -1) {
@@ -86,13 +93,18 @@ export default class Queue {
      * @param {number} index - The index.
      * @returns {*} - The removed element or undefined if nothing was removed.
      */
-    removeAt(index) {
+    removeAt(index: number): ?T {
         const removedItems = this._elements.splice(index, 1);
 
         return removedItems.length === 0 ? undefined : removedItems[0];
     }
 
-    get size() {
+    /**
+     * Returns the size of the queue.
+     *
+     * @returns {number} - The size of the queue.
+     */
+    get size(): number {
         return this._elements.length;
     }
 }

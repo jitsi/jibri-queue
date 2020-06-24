@@ -1,3 +1,5 @@
+// @flow
+
 import jwt from 'jsonwebtoken';
 
 /**
@@ -8,16 +10,16 @@ import jwt from 'jsonwebtoken';
  * @param {string} options.iss - The value of the iss claim.
  * @param {string} options.keyid - The kid claim value.
  * @param {number} options.expiresIn - The number of seconds in which the token will expire.
- * @returns {string} - The token
+ * @returns {string} - The token.
  */
-export function getToken(options = {}) {
+export function getToken(options: Object = {}) {
     const { privateKey, iss, keyid, expiresIn } = options;
 
     return jwt.sign({
         'iss': iss,
         'aud': 'jitsi',
         'sub': '*',
-        'room': '*',
+        'room': '*'
     }, privateKey, {
         algorithm: 'RS256',
         keyid,
@@ -31,9 +33,9 @@ export function getToken(options = {}) {
  *
  * @param {number} number - The number to be decreased.
  * @param {number} withN - The number that will be substracted.
- * @return {number} - The decreased number.
+ * @returns {number} - The decreased number.
  */
-export function safeDecrease(number, withN = 1) {
+export function safeDecrease(number: number, withN: number = 1) {
     const tmp = number - withN;
 
     return tmp < 0 ? 0 : tmp;

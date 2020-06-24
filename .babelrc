@@ -1,7 +1,9 @@
 {
+    "presets": [ "@babel/preset-flow" ],
     "plugins": [
-      ["transform-react-jsx", {
-        "pragma": "xml" // default pragma is React.createElement
-      }]
+        "@babel/plugin-transform-flow-strip-types",
+        ["transform-react-jsx", {
+            "pragma": "xml" // default pragma is React.createElement
+        }]
     ]
   }

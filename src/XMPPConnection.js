@@ -1,5 +1,9 @@
+// @flow
+
 /** @jsx xml */
 
+// We need xml for the jsx transformation.
+// eslint-disable-next-line no-unused-vars
 import { client, xml } from '@xmpp/client';
 import debug from '@xmpp/debug';
 import EventEmitter from 'events';
@@ -15,6 +19,10 @@ const IQ_TIMEOUT = 30000; // 30s
  * A class that handles the XMPP communication.
  */
 export default class XMPPConnection extends EventEmitter {
+
+    _config: Object;
+    _client: Object;
+
     /**
      * Creates new XMPPConnection instance.
      *
@@ -26,10 +34,11 @@ export default class XMPPConnection extends EventEmitter {
      * @param {string} config.domain - The domain passed to @xmpp/client library.
      * @param {boolean} [config.enableDebug] - If true @xmpp/debug will be enabled for this XMPP connection.
      */
-    constructor(config = {}) {
+    constructor(config: Object = {}) {
         super();
         this._config = config;
         const { username, password, resource, service, domain, enableDebug = false } = this._config;
+
         this._client = client({
             service,
             domain,
@@ -50,10 +59,10 @@ export default class XMPPConnection extends EventEmitter {
         this._onIQReceived = this._onIQReceived.bind(this);
 
         this._client.iqCallee.set('http://jitsi.org/protocol/jibri-queue', 'jibri-queue', this._onIQReceived);
-        this._client.on("error", this._onError);
-        this._client.on("offline", this._onOffline);
-        this._client.on("stanza", this._onStanza);
-        this._client.on("online", this._onOnline);
+        this._client.on('error', this._onError);
+        this._client.on('offline', this._onOffline);
+        this._client.on('stanza', this._onStanza);
+        this._client.on('online', this._onOnline);
 
         this._client.start().catch(this._onError);
     }
@@ -61,11 +70,13 @@ export default class XMPPConnection extends EventEmitter {
     /**
      * Returns the underlying @xmpp/client instance.
      *
-     * @return {Object}
+     * @returns {Object}
      */
     get nodeXmppClient() {
         return this._client;
     }
+
+    _onError: Error => void;
 
     /**
      * XMPP error handler.
@@ -73,10 +84,12 @@ export default class XMPPConnection extends EventEmitter {
      * @param {Object} error - The error.
      * @returns {void}
      */
-    _onError(error) {
-        console.error(`${this} error:`, error);
+    _onError(error: Error) {
+        console.error(`${this.toString()} error:`, error);
         this.emit('error', error);
     }
+
+    _onOffline: () => void;
 
     /**
      * XMPP offline handler.
@@ -84,9 +97,11 @@ export default class XMPPConnection extends EventEmitter {
      * @returns {void}
      */
     _onOffline() {
-        console.log(`${this} is offline!`);
+        console.log(`${this.toString()} is offline!`);
         this.emit('offline');
     }
+
+    _onOnline: string => void;
 
     /**
      * XMPP online handler.
@@ -94,10 +109,12 @@ export default class XMPPConnection extends EventEmitter {
      * @param {Object} address - Our jid.
      * @returns {void}
      */
-    _onOnline(address) {
-        console.log(`${this} is online!`);
+    _onOnline(address: string) {
+        console.log(`${this.toString()} is online!`);
         this.emit('online', address);
     }
+
+    _onStanza: Object => void;
 
     /**
      * XMPP stanza handler.
@@ -105,9 +122,11 @@ export default class XMPPConnection extends EventEmitter {
      * @param {Object} stanza - The stanza that is received.
      * @returns {void}
      */
-    _onStanza(stanza) {
+    _onStanza(stanza: Object) {
         this.emit('stanza', stanza);
     }
+
+    _onIQReceived: Object => void;
 
     /**
      * Jibri-queue IQ handler.
@@ -115,40 +134,51 @@ export default class XMPPConnection extends EventEmitter {
      * @param {Object} ctx - Contains the stanza and also the jibri-queue element.
      * @returns {void}
      */
-    _onIQReceived(ctx) {
+    _onIQReceived(ctx: Object) {
         const { element, stanza } = ctx;
         const { attrs } = element;
         const { action } = attrs;
 
-        switch (action){
-            case 'join':
-                console.log('user join', stanza.attrs.from);
-                this.emit('user-joined', stanza.attrs.from);
-                return true;
-            case 'leave':
-                this.emit('user-left', stanza.attrs.from);
-                return true;
+        switch (action) {
+        case 'join':
+            console.log('user join', stanza.attrs.from);
+            this.emit('user-joined', stanza.attrs.from);
+
+            return true;
+        case 'leave':
+            this.emit('user-left', stanza.attrs.from);
+
+            return true;
         }
 
         return (
             <error type = 'modify'>
-                <bad-request xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+                <bad-request xmlns = 'urn:ietf:params:xml:ns:xmpp-stanzas' />
             </error>);
     }
 
     /**
      * Send a token to an user with given jid.
+     *
      * @param {string} jid - The jid of the user.
      * @param {string} token - The token.
      * @returns {boolean} - True on success and false otherwise.
      */
-    async sendJWT(jid, token) {
+    async sendJWT(jid: string, token: string) {
         try {
-            await this._client.iqCaller.set(<jibri-queue xmlns = 'http://jitsi.org/protocol/jibri-queue' action = 'token' value = { token } />, jid, IQ_TIMEOUT);
+            await this._client.iqCaller.set(
+                <jibri-queue
+                    action = 'token'
+                    value = { token }
+                    xmlns = 'http://jitsi.org/protocol/jibri-queue' />,
+                jid,
+                IQ_TIMEOUT);
+
             return true;
         } catch (error) {
             // we've resceived error responce or the timeout expired.
-            console.error(`${this} error:`, error);
+            console.error(`${this.toString()} error:`, error);
+
             return false;
         }
     }
@@ -160,10 +190,12 @@ export default class XMPPConnection extends EventEmitter {
      * @param {Object} info - An object with information to be sent. Currently position and time.
      * @returns {boolean} - True on success and false otherwise.
      */
-    async sendUserInfo(jid, { position, time}) {
+    async sendUserInfo(jid: string, { position, time }: Object) {
         try {
             await this._client.iqCaller.set(
-                <jibri-queue xmlns = 'http://jitsi.org/protocol/jibri-queue' action = 'info'>
+                <jibri-queue
+                    action = 'info'
+                    xmlns = 'http://jitsi.org/protocol/jibri-queue' >
                     <position>{ position }</position>
                     <time>{ time }</time>
                 </jibri-queue>,
@@ -173,7 +205,7 @@ export default class XMPPConnection extends EventEmitter {
             return true;
         } catch (error) {
             // we've resceived error responce or the timeout expired.
-            console.error(`${this} error:`, error);
+            console.error(`${this.toString()} error:`, error);
 
             return false;
         }
@@ -194,16 +226,16 @@ export default class XMPPConnection extends EventEmitter {
      * @returns {void}
      */
     async disconnect() {
-        console.log(`${this} is disconnecting`);
+        console.log(`${this.toString()} is disconnecting`);
         try {
-            await this._xmpp.send(<presence type = "unavailable" />);
+            await this._client.send(<presence type = 'unavailable' />);
         } catch (error) {
-            console.error(`${this} error:`, error);
+            console.error(`${this.toString()} error:`, error);
         }
         try {
-            await this._xmpp.stop();
-        } catch(error) {
-            console.error(`${this} error:`, error);
+            await this._client.stop();
+        } catch (error) {
+            console.error(`${this.toString()} error:`, error);
         }
     }
 }

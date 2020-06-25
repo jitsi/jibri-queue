@@ -85,7 +85,7 @@ export default class ParticipantQueue {
             if (this._pendingUsers > 0) {
                 // We assume a pending user has used his token to start a jibri session.
                 // We can remove the user from _pendingUsers.
-                this._pendingUsers = safeDecrease(this._pendingUsers);
+                this._decreasePendingUsers();
 
                 // NOTE: It is important to remove the oldest timeout in order to make sure that _pendingUsers
                 // is not decreased too early and we send more tokens than the number of jibris we have available
@@ -138,7 +138,7 @@ export default class ParticipantQueue {
         // process dies before we actually send the token, when we restart the app, we will
         // be able to generate a new token and send it to the user.
         this._pendingUsers++;
-        const user = this._participantQueue.removeAt(0);
+        const user = this.removeAt(0);
 
         let token;
 
@@ -160,13 +160,26 @@ export default class ParticipantQueue {
             // We need to wait for tokenTimeout ms and if a jibri haven't switched states we can remove 1 from
             // _pendingUsers because the token will expire anyway and the user won't be able to use a jibri.
             this._timeoutQueue.push(setTimeout(() => {
-                this._pendingUsers = safeDecrease(this._pendingUsers);
+                this._decreasePendingUsers();
             }, tokenTimeout));
         } else {
             // FIXME: Maybe check if this is client error and mark as pending. If a malicious client replies with error
             // and in the same time uses the token our pending logic will brake and we may issue more tokens then
             // the number of available jibris at the moment.
-            this._pendingUsers = safeDecrease(this._pendingUsers);
+            this._decreasePendingUsers();
+        }
+    }
+
+    /**
+     * Decreases _pendingUsers by one and checks for available jibris.
+     *
+     * @returns {void}
+     */
+    _decreasePendingUsers() {
+        this._pendingUsers = safeDecrease(this._pendingUsers);
+
+        if (this._haveAvailableJibri()) {
+            this._sendTokenToUser();
         }
     }
 
@@ -216,7 +229,7 @@ export default class ParticipantQueue {
                 // since _updateUserInfoFrom is async, probably in meantime an element was removed.
                 break;
             }
-            const success = await !this._connection.sendUserInfo(user, {
+            const success = await this._connection.sendUserInfo(user, {
                 position: i + 1,
                 time: 0 // FIXME: time estimation
             });

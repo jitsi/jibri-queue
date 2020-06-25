@@ -114,10 +114,10 @@ export default class JibriPool extends EventEmitter {
 
             switch (oldStatus) {
             case BUSY:
-                safeDecrease(this._busyJibris);
+                this._busyJibris = safeDecrease(this._busyJibris);
                 break;
             case FREE:
-                safeDecrease(this._freeJibris);
+                this._freeJibris = safeDecrease(this._freeJibris);
                 break;
             default:
                 console.warn('A jibri with unknown status left', oldStatus);
@@ -175,11 +175,11 @@ export default class JibriPool extends EventEmitter {
         switch (newStatus) {
         case BUSY:
             this._busyJibris++;
-            safeDecrease(this._freeJibris);
+            this._freeJibris = safeDecrease(this._freeJibris);
             break;
         case FREE:
             this._freeJibris++;
-            safeDecrease(this._busyJibris);
+            this._busyJibris = safeDecrease(this._busyJibris);
             break;
         default:
             console.warn('A jibri changed its status to an unknown one', newStatus);

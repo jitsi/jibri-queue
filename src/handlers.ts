@@ -1,23 +1,20 @@
 import { Request, Response } from "express";
 import { Logger } from "winston";
+import { RecorderQueue } from "./queue";
 
-/**
- * POST /job/recording
- * Create a new recording job to begin the
- * process of obtaining a recording access JWT.
- */
+class Handlers {
+    private logger: Logger;
+    private queue: RecorderQueue;
 
- class Handlers {
-    logger: Logger;
-    // some sort of queue object TBD
-
-    constructor(logger: Logger) {
+    constructor(logger: Logger, queue: RecorderQueue) {
         this.logger = logger;
+        this.queue = queue;
     }
 
-    requestRecordingJob(req: Request, res: Response) {
+    requestRecordingJob = (req: Request, res: Response) => {
         // Add some sort of json parsing middleware and then use
         // a request body to enqueue the job using the queue instance
+        this.queue.addRequest("hello", {info: "good bye"}
         res.sendStatus(200);
     }
  }

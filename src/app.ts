@@ -1,30 +1,33 @@
-import express from "express";
+import bodyParser from "body-parser";
 import config from "./config";
-import logger from "./logger";
+import express from "express";
 import Handlers from "./handlers";
-import { RecorderQueue } from "./queue";
-import { QueueOptions } from "bullmq";
+import logger from "./logger";
+import * as meter from "./meter";
+//import * as IORedis from "ioredis";
+//import Redlock from "redlock";
 
 const app = express();
+app.use(bodyParser.json());
 
 // TODO: Add prometheus stating middleware for each http
 // TODO: Add http logging middleware
-
-//recorderQueue.addRequest("hello", {info: "good bye"})
 
 app.get("/health", (req: express.Request, res: express.Response) => {
     res.send("healthy!");
 });
 
-const recorderQueue = new RecorderQueue(logger, { connection: {
-    host: config.RedisHost,
-    port: Number(config.RedisPort),
-    password: config.RedisPassword,
-}});
+const recorderMeter = new meter.RecorderMeter({
+    redisHost: config.RedisHost,
+    redisPort: Number(config.RedisPort),
+    redisPassword: config.RedisPassword,
+    logger: logger,
+});
 
-const h = new Handlers(logger, recorderQueue);
-
+const h = new Handlers(logger, recorderMeter);
 app.post("/job/recording", h.requestRecordingJob);
+
+recorderMeter.start();
 
 app.listen(config.HTTPServerPort, () => {
     logger.info(`...listening on :${config.HTTPServerPort}`)

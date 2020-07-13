@@ -38,27 +38,11 @@ app.post('/job/recording', h.requestRecordingJob);
 app.post('/hook/v1/status', h.jibriStateWebhook);
 
 async function jobProcessor(job: Job): Promise<void> {
-    // Our job should have some data we need to provide a response
-
-    // get a recorder
     try {
-        await jibriTracker.nextAvailable();
-        // TODO: trigger a call to the lua module http api.
+        const jibriID = await jibriTracker.nextAvailable();
+        logger.debug(`job ${job.id} reserved with lock ${jibriID}`);
     } catch (err) {
-        logger.info('no recorders here');
-        /**
-         * TODO: what do we do with a job that fails to be handled?
-         *
-         * If there are no recorders available then re-enqueue the job with a delay and priority.
-         *
-         * One possibility is that the failed event is triggered and the job
-         * is added back on the queue with high priority. If it is event based then
-         * we don't need to catch??
-         *
-         * https://docs.bullmq.io/guide/jobs/proritized
-         * https://docs.bullmq.io/guide/events
-         *
-         */
+        logger.error('');
     }
 }
 recorderMeter.start(jobProcessor);

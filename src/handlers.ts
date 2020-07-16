@@ -1,26 +1,25 @@
 import { Request, Response } from 'express';
 import { Logger } from 'winston';
-import { RecorderMeter } from './meter';
 import { JibriTracker, JibriState } from './jibri_tracker';
+import { RequestTracker } from './request_tracker';
 
 class Handlers {
     private logger: Logger;
-    private meter: RecorderMeter;
-    private tracker: JibriTracker;
+    private jibriTracker: JibriTracker;
+    private requestTracker: RequestTracker;
 
-    constructor(logger: Logger, meter: RecorderMeter, tracker: JibriTracker) {
+    constructor(logger: Logger, requestTracker: RequestTracker, jibriTracker: JibriTracker) {
         this.requestRecordingJob = this.requestRecordingJob.bind(this);
         this.jibriStateWebhook = this.jibriStateWebhook.bind(this);
 
         this.logger = logger;
-        this.meter = meter;
-        this.tracker = tracker;
+        this.requestTracker = requestTracker;
+        this.jibriTracker = jibriTracker;
     }
 
     async requestRecordingJob(req: Request, res: Response): Promise<void> {
-        // TODO: make a type to convert the body to like we do with
-        // the webhook.
-        await this.meter.addRequest(req.body.id, req.body);
+        // TODO: make a type to convert the body to like we do with the webhook.
+        await this.requestTracker.request(req.body.id);
         res.sendStatus(200);
     }
 
@@ -38,7 +37,7 @@ class Handlers {
         this.logger.debug(
             `webhook state for ${status.jibriId}-${status.status.health.healthStatus}-${status.status.busyStatus}`,
         );
-        await this.tracker.track(status);
+        await this.jibriTracker.track(status);
         res.sendStatus(200);
     }
 }

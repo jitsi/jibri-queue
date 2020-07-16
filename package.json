@@ -11,7 +11,6 @@
     "node": ">=10"
   },
   "dependencies": {
-    "bullmq": "^1.8.13",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "redlock": "^4.1.0",

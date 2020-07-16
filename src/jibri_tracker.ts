@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events';
 import { Logger } from 'winston';
 import Redlock from 'redlock';
 import Redis from 'ioredis';
@@ -27,24 +26,20 @@ export interface JibriState {
     status: JibriStatus;
 }
 
-export class JibriTracker extends EventEmitter {
+export class JibriTracker {
     private redisClient: Redis.Redis;
     private pendingLock: Redlock;
     private logger: Logger;
 
     static readonly idleTTL = 90; // seconds
-    static readonly pendingTTL = 10000; // seconds
+    static readonly pendingTTL = 10000; // milliseconds
 
     constructor(logger: Logger, redisClient: Redis.Redis) {
-        super();
-
-        this.setPending = this.setPending.bind(this);
-
+        //this.setPending = this.setPending.bind(this);
         this.logger = logger;
         this.redisClient = redisClient;
         this.pendingLock = new Redlock(
-            // you should have one client for each independent redis node
-            // or cluster
+            // TODO: you should have one client for each independent redis node or cluster
             [this.redisClient],
             {
                 driftFactor: 0.01, // time in ms
@@ -54,7 +49,7 @@ export class JibriTracker extends EventEmitter {
             },
         );
         this.pendingLock.on('clientError', (err) => {
-            this.logger.error('A redis error has occurred:', err);
+            this.logger.error('A pendingLock redis error has occurred:', err);
         });
     }
 
@@ -68,7 +63,6 @@ export class JibriTracker extends EventEmitter {
             if (result !== 'OK') {
                 throw new Error(`unable to set ${key}`);
             }
-            this.emit('idle', state.jibriId);
             return true;
         }
         await this.redisClient.del(key);
@@ -108,22 +102,6 @@ export class JibriTracker extends EventEmitter {
                 continue;
             }
         }
-
-        // At this point we've been unable to lock pending on an
-        // of the existing idle jibri so we must wait for an idle one to
-        // become available.
-        const p = new Promise<string>((res, rej) => {
-            const lockCB = async (jibriID: string) => {
-                const key = `jibri:pending:${jibriID}`;
-                const locked = await this.setPending(key);
-                if (locked) {
-                    this.logger.debug(`${jibriID} is  pending`);
-                    this.off('idle', lockCB);
-                    res(jibriID);
-                }
-            };
-            this.on('idle', lockCB);
-        });
-        return p;
+        throw new Error('no recorder');
     }
 }

@@ -10,6 +10,7 @@ class Handlers {
 
     constructor(logger: Logger, requestTracker: RequestTracker, jibriTracker: JibriTracker) {
         this.requestRecordingJob = this.requestRecordingJob.bind(this);
+        this.cancelRecordingJob = this.cancelRecordingJob.bind(this);
         this.jibriStateWebhook = this.jibriStateWebhook.bind(this);
 
         this.logger = logger;
@@ -18,8 +19,12 @@ class Handlers {
     }
 
     async requestRecordingJob(req: Request, res: Response): Promise<void> {
-        // TODO: make a type to convert the body to like we do with the webhook.
         await this.requestTracker.request(req.body.id);
+        res.sendStatus(200);
+    }
+
+    async cancelRecordingJob(req: Request, res: Response): Promise<void> {
+        await this.requestTracker.cancel(req.body.id);
         res.sendStatus(200);
     }
 

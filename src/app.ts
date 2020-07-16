@@ -5,14 +5,22 @@ import Handlers from './handlers';
 import Redis from 'ioredis';
 import logger from './logger';
 import { JibriTracker } from './jibri_tracker';
-import { RequestTracker, RecorderRequest } from './request_tracker';
+import { RequestTracker, RecorderRequestMeta } from './request_tracker';
 
 const app = express();
 app.use(bodyParser.json());
 
 // TODO: Add prometheus stating middleware for each http
 // TODO: Add http logging middleware
+// TODO: metrics overview
 // TODO: Add an error handler middleware for handlers that throw
+// TODO: JWT Validation middleware
+// TODO: JWT Creation for Lua Module API
+// TODO: JWT Creation for requestor
+// TODO: unittesting
+// TODO: doc strings???
+// TODO: readme updates and docker compose allthethings
+// TODO: leave queue
 
 app.get('/health', (req: express.Request, res: express.Response) => {
     res.send('healthy!');
@@ -29,9 +37,10 @@ const requestTracker = new RequestTracker(logger, redisClient);
 const h = new Handlers(logger, requestTracker, jibriTracker);
 
 app.post('/job/recording', h.requestRecordingJob);
+app.post('/job/recording/cancel', h.cancelRecordingJob);
 app.post('/hook/v1/status', h.jibriStateWebhook);
 
-async function processor(req: RecorderRequest): Promise<boolean> {
+async function processor(req: RecorderRequestMeta): Promise<boolean> {
     try {
         const jibriId = await jibriTracker.nextAvailable();
         logger.debug(`obtained ${jibriId} for ${req.id}`);

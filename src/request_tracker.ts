@@ -2,23 +2,12 @@ import { Logger } from 'winston';
 import Redis from 'ioredis';
 import Redlock from 'redlock';
 
-export interface RecorderRequest {
+export interface RecorderRequestMeta {
     id: string;
     created: Date;
 }
 
-interface RecorderRequestJSON {
-    id: string;
-    created: string;
-}
-
-function decodeRecorderRequest(json: RecorderRequestJSON): RecorderRequest {
-    return Object.assign({}, json, {
-        created: new Date(json.created),
-    });
-}
-
-export type Processor = (req: RecorderRequest) => Promise<boolean>;
+export type Processor = (req: RecorderRequestMeta) => Promise<boolean>;
 
 export class RequestTracker {
     private logger: Logger;
@@ -32,6 +21,8 @@ export class RequestTracker {
     static readonly processingTTL = 1000; // time in ms
     // listKey is the key used for storing list of requests.
     static readonly listKey = 'jibri:request:pending';
+    // requestKeyPre is the prefix for storing request metadata.
+    static readonly requestKeyPre = 'jibri:request:';
     // updateDelay is the amount of time a request must be in
     // the list before updates will be provided to requestor.
     static readonly updateDelay = 1; // time in seconds
@@ -54,13 +45,36 @@ export class RequestTracker {
         });
     }
 
+    metaKey(id: string): string {
+        return `${RequestTracker.requestKeyPre}${id}`;
+    }
+
     async request(id: string): Promise<void> {
-        const req: RecorderRequest = {
+        const created = new Date(Date.now());
+        const meta: RecorderRequestMeta = {
             id: id,
-            created: new Date(Date.now()),
+            created: created,
         };
-        const reqStr = JSON.stringify(req);
-        await this.redisClient.rpush(RequestTracker.listKey, reqStr);
+
+        const ret = await this.redisClient
+            .multi()
+            .rpush(RequestTracker.listKey, id)
+            .set(this.metaKey(id), JSON.stringify(meta), 'ex', 86400) // ttl 1 day
+            .exec();
+        for (const each of ret) {
+            if (each[0]) {
+                throw each[0];
+            }
+        }
+    }
+
+    async cancel(id: string): Promise<void> {
+        const ret = await this.redisClient.multi().lrem(RequestTracker.listKey, 0, id).del(this.metaKey(id)).exec();
+        for (const each of ret) {
+            if (each[0]) {
+                throw each[0];
+            }
+        }
     }
 
     async processNextRequest(processor: Processor): Promise<boolean> {
@@ -74,13 +88,32 @@ export class RequestTracker {
 
         let result = false;
         try {
-            const r = await this.redisClient.lindex(RequestTracker.listKey, 0);
-            if (r != null) {
-                const request = decodeRecorderRequest(<RecorderRequestJSON>JSON.parse(r));
-                this.logger.debug(`servicing req ${request.id}`);
-                result = await processor(request);
+            const reqId = await this.redisClient.lindex(RequestTracker.listKey, 0);
+            if (reqId != null) {
+                const metaString = await this.redisClient.get(this.metaKey(reqId));
+                if (!metaString) {
+                    this.logger.warn(`no meta for ${reqId} - skipping processing`);
+                    return false;
+                }
+                const meta: RecorderRequestMeta = JSON.parse(metaString, (key, value) => {
+                    if (key === 'created') {
+                        return new Date(value);
+                    }
+                    return value;
+                });
+                this.logger.debug(`servicing req ${reqId}`);
+                result = await processor(meta);
                 if (result) {
-                    await this.redisClient.lpop(RequestTracker.listKey);
+                    const ret = await this.redisClient
+                        .multi()
+                        .lpop(RequestTracker.listKey)
+                        .del(this.metaKey(reqId))
+                        .exec();
+                    for (const each of ret) {
+                        if (each[0]) {
+                            throw each[0];
+                        }
+                    }
                 }
             }
         } finally {
@@ -91,13 +124,20 @@ export class RequestTracker {
 
     async processUpdates(): Promise<void> {
         const allJobs = await this.redisClient.lrange(RequestTracker.listKey, 0, -1);
-        allJobs.forEach((each: string, index: number) => {
+        allJobs.forEach(async (reqId: string, index: number) => {
             const now = Date.now();
-            const req = decodeRecorderRequest(<RecorderRequestJSON>JSON.parse(each));
-            const diffTime = Math.trunc(Math.abs(now - req.created.getTime()) / 1000);
+            const m = await this.redisClient.get(this.metaKey(reqId));
+            const meta: RecorderRequestMeta = JSON.parse(m, (key, value) => {
+                if (key === 'created') {
+                    return new Date(value);
+                }
+                return value;
+            });
+            meta.created = new Date(meta.created);
+            const diffTime = Math.trunc(Math.abs(now - meta.created.getTime()) / 1000);
             if (diffTime >= RequestTracker.updateDelay) {
-                this.logger.debug(`request ${req.id} is in position ${index}`);
-                this.logger.debug(`request ${req.id} in queue for ${diffTime} seconds`);
+                this.logger.debug(`request ${reqId} is in position ${index}`);
+                this.logger.debug(`request ${reqId} in queue for ${diffTime} seconds`);
             }
         });
     }

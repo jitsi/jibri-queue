@@ -13,14 +13,15 @@ app.use(bodyParser.json());
 // TODO: Add prometheus stating middleware for each http
 // TODO: Add http logging middleware
 // TODO: metrics overview
-// TODO: Add an error handler middleware for handlers that throw
+// TODO: use a set for metadata
+
 // TODO: JWT Validation middleware
 // TODO: JWT Creation for Lua Module API
 // TODO: JWT Creation for requestor
+
 // TODO: unittesting
 // TODO: doc strings???
 // TODO: readme updates and docker compose allthethings
-// TODO: leave queue
 
 app.get('/health', (req: express.Request, res: express.Response) => {
     res.send('healthy!');
@@ -36,9 +37,27 @@ const jibriTracker = new JibriTracker(logger, redisClient);
 const requestTracker = new RequestTracker(logger, redisClient);
 const h = new Handlers(logger, requestTracker, jibriTracker);
 
-app.post('/job/recording', h.requestRecordingJob);
-app.post('/job/recording/cancel', h.cancelRecordingJob);
-app.post('/hook/v1/status', h.jibriStateWebhook);
+app.post('/job/recording', async (req, res, next) => {
+    try {
+        await h.requestRecordingJob(req, res);
+    } catch (err) {
+        next(err);
+    }
+});
+app.post('/job/recording/cancel', async (req, res, next) => {
+    try {
+        await h.cancelRecordingJob(req, res);
+    } catch (err) {
+        next(err);
+    }
+});
+app.post('/hook/v1/status', async (req, res, next) => {
+    try {
+        await h.jibriStateWebhook(req, res);
+    } catch (err) {
+        next(err);
+    }
+});
 
 async function processor(req: RecorderRequestMeta): Promise<boolean> {
     try {

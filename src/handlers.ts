@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Logger } from 'winston';
 import { JibriTracker, JibriState } from './jibri_tracker';
-import { RequestTracker } from './request_tracker';
+import { RequestTracker, RecorderRequest } from './request_tracker';
 
 class Handlers {
     private logger: Logger;
@@ -19,7 +19,7 @@ class Handlers {
     }
 
     async requestRecordingJob(req: Request, res: Response): Promise<void> {
-        await this.requestTracker.request(req.body.id);
+        await this.requestTracker.request(req.body);
         res.sendStatus(200);
     }
 

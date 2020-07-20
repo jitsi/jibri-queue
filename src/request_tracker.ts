@@ -2,9 +2,24 @@ import { Logger } from 'winston';
 import Redis from 'ioredis';
 import Redlock from 'redlock';
 
-export interface RecorderRequestMeta {
-    id: string;
-    created: Date;
+export interface RecorderRequest {
+    conference: string;
+    roomParam: string;
+    externalApiUrl: string;
+    eventType: string;
+    participant: string;
+    requestId: string;
+}
+
+export type LeaveRequest = RecorderRequest;
+
+export interface RecorderRequestMeta extends RecorderRequest {
+    created: string;
+}
+
+export interface Update extends RecorderRequest {
+    position: number;
+    time: number;
 }
 
 export type Processor = (req: RecorderRequestMeta) => Promise<boolean>;
@@ -49,17 +64,19 @@ export class RequestTracker {
         return `${RequestTracker.requestKeyPre}${id}`;
     }
 
-    async request(id: string): Promise<void> {
-        const created = new Date(Date.now());
-        const meta: RecorderRequestMeta = {
-            id: id,
-            created: created,
-        };
-
+    async request(req: RecorderRequest): Promise<void> {
+        const created = Date.now();
+        const metaKey = this.metaKey(req.requestId);
         const ret = await this.redisClient
             .multi()
-            .rpush(RequestTracker.listKey, id)
-            .set(this.metaKey(id), JSON.stringify(meta), 'ex', 86400) // ttl 1 day
+            .rpush(RequestTracker.listKey, req.requestId)
+            .hset(metaKey, 'conference', req.conference)
+            .hset(metaKey, 'roomParam', req.roomParam)
+            .hset(metaKey, 'externalApiUrl', req.externalApiUrl)
+            .hset(metaKey, 'participant', req.participant)
+            .hset(metaKey, 'requestId', req.requestId)
+            .hset(metaKey, 'created', created.toString())
+            .expire(metaKey, 86400) // ttl of one day
             .exec();
         for (const each of ret) {
             if (each[0]) {
@@ -86,23 +103,18 @@ export class RequestTracker {
             return false;
         }
 
-        let result = false;
+        const result = false;
         try {
             const reqId = await this.redisClient.lindex(RequestTracker.listKey, 0);
             if (reqId != null) {
-                const metaString = await this.redisClient.get(this.metaKey(reqId));
-                if (!metaString) {
+                const m = await this.redisClient.hgetall(this.metaKey(reqId));
+                if (!m) {
                     this.logger.warn(`no meta for ${reqId} - skipping processing`);
                     return false;
                 }
-                const meta: RecorderRequestMeta = JSON.parse(metaString, (key, value) => {
-                    if (key === 'created') {
-                        return new Date(value);
-                    }
-                    return value;
-                });
-                this.logger.debug(`servicing req ${reqId}`);
-                result = await processor(meta);
+                const meta = <RecorderRequestMeta>(<unknown>m);
+                this.logger.debug(`servicing req ${meta.requestId}`);
+                const result = await processor(meta);
                 if (result) {
                     const ret = await this.redisClient
                         .multi()
@@ -124,20 +136,14 @@ export class RequestTracker {
 
     async processUpdates(): Promise<void> {
         const allJobs = await this.redisClient.lrange(RequestTracker.listKey, 0, -1);
+        const now = Date.now();
         allJobs.forEach(async (reqId: string, index: number) => {
-            const now = Date.now();
-            const m = await this.redisClient.get(this.metaKey(reqId));
-            const meta: RecorderRequestMeta = JSON.parse(m, (key, value) => {
-                if (key === 'created') {
-                    return new Date(value);
-                }
-                return value;
-            });
-            meta.created = new Date(meta.created);
-            const diffTime = Math.trunc(Math.abs(now - meta.created.getTime()) / 1000);
+            const c = await this.redisClient.hget(this.metaKey(reqId), 'created');
+            const created = parseInt(c, 10);
+            now - created;
+            const diffTime = Math.trunc(Math.abs((now - created) / 1000));
             if (diffTime >= RequestTracker.updateDelay) {
-                this.logger.debug(`request ${reqId} is in position ${index}`);
-                this.logger.debug(`request ${reqId} in queue for ${diffTime} seconds`);
+                this.logger.debug(`request update ${reqId} position: ${index} time: ${diffTime}`);
             }
         });
     }

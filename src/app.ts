@@ -13,7 +13,6 @@ app.use(bodyParser.json());
 // TODO: Add prometheus stating middleware for each http
 // TODO: Add http logging middleware
 // TODO: metrics overview
-// TODO: use a set for metadata
 
 // TODO: JWT Validation middleware
 // TODO: JWT Creation for Lua Module API
@@ -62,7 +61,7 @@ app.post('/hook/v1/status', async (req, res, next) => {
 async function processor(req: RecorderRequestMeta): Promise<boolean> {
     try {
         const jibriId = await jibriTracker.nextAvailable();
-        logger.debug(`obtained ${jibriId} for ${req.id}`);
+        logger.debug(`obtained ${jibriId} for ${req.requestId}`);
     } catch (err) {
         logger.info(`recorder not available: ${err}`);
         return false;

@@ -4,17 +4,21 @@ import express from 'express';
 import Handlers from './handlers';
 import Redis from 'ioredis';
 import logger from './logger';
+import ASAPPubKeyFetcher from './asap';
+import jwt, { secretType } from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker, RecorderRequestMeta } from './request_tracker';
 
+const asapFetcher = new ASAPPubKeyFetcher(logger, 'https://d4dv7jmo5uq1d.cloudfront.net/meet-8x8', 3600);
 const app = express();
 app.use(bodyParser.json());
+app.use(jwt({ secret: asapFetcher.pubKeyCallback, algorithms: ['RS256'] }).unless({ path: '/health' }));
 
+// TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
 // TODO: Add http logging middleware
 // TODO: metrics overview
 
-// TODO: JWT Validation middleware
 // TODO: JWT Creation for Lua Module API
 // TODO: JWT Creation for requestor
 
@@ -43,6 +47,7 @@ app.post('/job/recording', async (req, res, next) => {
         next(err);
     }
 });
+
 app.post('/job/recording/cancel', async (req, res, next) => {
     try {
         await h.cancelRecordingJob(req, res);

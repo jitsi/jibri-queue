@@ -9,10 +9,8 @@ import jwt, { secretType } from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker, RecorderRequestMeta } from './request_tracker';
 
-const asapFetcher = new ASAPPubKeyFetcher(logger, 'https://d4dv7jmo5uq1d.cloudfront.net/meet-8x8', 3600);
 const app = express();
 app.use(bodyParser.json());
-app.use(jwt({ secret: asapFetcher.pubKeyCallback, algorithms: ['RS256'] }).unless({ path: '/health' }));
 
 // TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
@@ -39,30 +37,81 @@ const redisClient = new Redis({
 const jibriTracker = new JibriTracker(logger, redisClient);
 const requestTracker = new RequestTracker(logger, redisClient);
 const h = new Handlers(logger, requestTracker, jibriTracker);
+//const asapFetcher = new ASAPPubKeyFetcher(logger, 'https://d4dv7jmo5uq1d.cloudfront.net/meet-8x8', 3600);
+const asapFetcher = new ASAPPubKeyFetcher(logger, config.ASAPPubKeyBaseUrl, Number(config.ASAPPubKeyTTL));
 
-app.post('/job/recording', async (req, res, next) => {
-    try {
-        await h.requestRecordingJob(req, res);
-    } catch (err) {
-        next(err);
-    }
-});
-
-app.post('/job/recording/cancel', async (req, res, next) => {
-    try {
-        await h.cancelRecordingJob(req, res);
-    } catch (err) {
-        next(err);
-    }
-});
-app.post('/hook/v1/status', async (req, res, next) => {
-    try {
-        await h.jibriStateWebhook(req, res);
-    } catch (err) {
-        next(err);
-    }
-});
-
+if (config.ASAPDisabled) {
+    app.post('/job/recording', async (req, res, next) => {
+        try {
+            await h.requestRecordingJob(req, res);
+        } catch (err) {
+            next(err);
+        }
+    });
+    app.post('/job/recording/cancel', async (req, res, next) => {
+        try {
+            await h.cancelRecordingJob(req, res);
+        } catch (err) {
+            next(err);
+        }
+    });
+    app.post('/hook/v1/status', async (req, res, next) => {
+        try {
+            await h.jibriStateWebhook(req, res);
+        } catch (err) {
+            next(err);
+        }
+    });
+} else {
+    app.post(
+        '/job/recording',
+        jwt({
+            secret: asapFetcher.pubKeyCallback,
+            audience: config.ASAPJwtAudience,
+            issuer: config.ASAPJwtAcceptedIss,
+            algorithms: ['RS256'],
+        }),
+        async (req, res, next) => {
+            try {
+                await h.requestRecordingJob(req, res);
+            } catch (err) {
+                next(err);
+            }
+        },
+    );
+    app.post(
+        '/job/recording/cancel',
+        jwt({
+            secret: asapFetcher.pubKeyCallback,
+            audience: config.ASAPJwtAudience,
+            issuer: config.ASAPJwtAcceptedIss,
+            algorithms: ['RS256'],
+        }),
+        async (req, res, next) => {
+            try {
+                await h.cancelRecordingJob(req, res);
+            } catch (err) {
+                next(err);
+            }
+        },
+    );
+    app.post(
+        '/hook/v1/status',
+        jwt({
+            secret: asapFetcher.pubKeyCallback,
+            audience: config.ASAPJwtAudience,
+            issuer: config.ASAPJwtAcceptedHookIss,
+            algorithms: ['RS256'],
+        }),
+        async (req, res, next) => {
+            try {
+                await h.jibriStateWebhook(req, res);
+            } catch (err) {
+                next(err);
+            }
+        },
+    );
+}
 async function processor(req: RecorderRequestMeta): Promise<boolean> {
     try {
         const jibriId = await jibriTracker.nextAvailable();

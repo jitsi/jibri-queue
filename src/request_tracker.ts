@@ -23,6 +23,7 @@ export interface Update extends RecorderRequest {
 }
 
 export type Processor = (req: RecorderRequestMeta) => Promise<boolean>;
+export type UpdateProcessor = (req: RecorderRequest, position: number) => Promise<boolean>;
 
 export class RequestTracker {
     private logger: Logger;
@@ -128,22 +129,27 @@ export class RequestTracker {
                     }
                 }
             }
+        } catch (err) {
+            this.logger.error(`processing request ${err}`);
         } finally {
             lock.unlock();
         }
         return result;
     }
 
-    async processUpdates(): Promise<void> {
+    async processUpdates(processor: UpdateProcessor): Promise<void> {
         const allJobs = await this.redisClient.lrange(RequestTracker.listKey, 0, -1);
-        const now = Date.now();
         allJobs.forEach(async (reqId: string, index: number) => {
-            const c = await this.redisClient.hget(this.metaKey(reqId), 'created');
-            const created = parseInt(c, 10);
-            now - created;
-            const diffTime = Math.trunc(Math.abs((now - created) / 1000));
-            if (diffTime >= RequestTracker.updateDelay) {
-                this.logger.debug(`request update ${reqId} position: ${index} time: ${diffTime}`);
+            try {
+                const m = await this.redisClient.hgetall(this.metaKey(reqId));
+                if (!m) {
+                    this.logger.warn(`no meta for ${reqId} - update skipped`);
+                    return false;
+                }
+                const meta = <RecorderRequest>(<unknown>m);
+                await processor(meta, index);
+            } catch (err) {
+                this.logger.error(`processing update ${err}`);
             }
         });
     }

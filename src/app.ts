@@ -8,6 +8,7 @@ import ASAPPubKeyFetcher from './asap';
 import jwt, { secretType } from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker, RecorderRequestMeta } from './request_tracker';
+import * as meet from './meet_processor';
 
 const app = express();
 app.use(bodyParser.json());
@@ -33,14 +34,13 @@ const redisClient = new Redis({
     port: Number(config.RedisPort),
     password: config.RedisPassword,
 });
-
 const jibriTracker = new JibriTracker(logger, redisClient);
 const requestTracker = new RequestTracker(logger, redisClient);
-const h = new Handlers(logger, requestTracker, jibriTracker);
-//const asapFetcher = new ASAPPubKeyFetcher(logger, 'https://d4dv7jmo5uq1d.cloudfront.net/meet-8x8', 3600);
-const asapFetcher = new ASAPPubKeyFetcher(logger, config.ASAPPubKeyBaseUrl, Number(config.ASAPPubKeyTTL));
+const h = new Handlers(requestTracker, jibriTracker);
 
-if (config.ASAPDisabled) {
+console.log(`CFDGA ${config.ProtectedApi}`);
+if (config.ProtectedApi === 'false') {
+    logger.warn('starting in unprotected api mode');
     app.post('/job/recording', async (req, res, next) => {
         try {
             await h.requestRecordingJob(req, res);
@@ -63,12 +63,14 @@ if (config.ASAPDisabled) {
         }
     });
 } else {
+    logger.debug('starting in protected api mode');
+    const asapFetcher = new ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
     app.post(
         '/job/recording',
         jwt({
             secret: asapFetcher.pubKeyCallback,
-            audience: config.ASAPJwtAudience,
-            issuer: config.ASAPJwtAcceptedIss,
+            audience: meet.AsapJwtAcceptedAud,
+            issuer: meet.AsapJwtAcceptedIss,
             algorithms: ['RS256'],
         }),
         async (req, res, next) => {
@@ -83,8 +85,8 @@ if (config.ASAPDisabled) {
         '/job/recording/cancel',
         jwt({
             secret: asapFetcher.pubKeyCallback,
-            audience: config.ASAPJwtAudience,
-            issuer: config.ASAPJwtAcceptedIss,
+            audience: meet.AsapJwtAcceptedAud,
+            issuer: meet.AsapJwtAcceptedIss,
             algorithms: ['RS256'],
         }),
         async (req, res, next) => {
@@ -99,8 +101,8 @@ if (config.ASAPDisabled) {
         '/hook/v1/status',
         jwt({
             secret: asapFetcher.pubKeyCallback,
-            audience: config.ASAPJwtAudience,
-            issuer: config.ASAPJwtAcceptedHookIss,
+            audience: meet.AsapJwtAcceptedAud,
+            issuer: meet.AsapJwtAcceptedHookIss,
             algorithms: ['RS256'],
         }),
         async (req, res, next) => {
@@ -112,25 +114,16 @@ if (config.ASAPDisabled) {
         },
     );
 }
-async function processor(req: RecorderRequestMeta): Promise<boolean> {
-    try {
-        const jibriId = await jibriTracker.nextAvailable();
-        logger.debug(`obtained ${jibriId} for ${req.requestId}`);
-    } catch (err) {
-        logger.info(`recorder not available: ${err}`);
-        return false;
-    }
-    return true;
-}
 
+const meetProcessor = new meet.MeetProcessor(jibriTracker);
 async function pollForRecorderReqs() {
-    await requestTracker.processNextRequest(processor);
+    await requestTracker.processNextRequest(meetProcessor.requestProcessor);
     setTimeout(pollForRecorderReqs, 1000);
 }
 pollForRecorderReqs();
 
 async function pollForRequestUpdates() {
-    await requestTracker.processUpdates();
+    await requestTracker.processUpdates(meetProcessor.updateProcessor);
     setTimeout(pollForRequestUpdates, 3000);
 }
 pollForRequestUpdates();

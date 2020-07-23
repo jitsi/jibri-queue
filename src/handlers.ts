@@ -1,19 +1,16 @@
 import { Request, Response } from 'express';
-import { Logger } from 'winston';
 import { JibriTracker, JibriState } from './jibri_tracker';
 import { RequestTracker, RecorderRequest } from './request_tracker';
 
 class Handlers {
-    private logger: Logger;
     private jibriTracker: JibriTracker;
     private requestTracker: RequestTracker;
 
-    constructor(logger: Logger, requestTracker: RequestTracker, jibriTracker: JibriTracker) {
+    constructor(requestTracker: RequestTracker, jibriTracker: JibriTracker) {
         this.requestRecordingJob = this.requestRecordingJob.bind(this);
         this.cancelRecordingJob = this.cancelRecordingJob.bind(this);
         this.jibriStateWebhook = this.jibriStateWebhook.bind(this);
 
-        this.logger = logger;
         this.requestTracker = requestTracker;
         this.jibriTracker = jibriTracker;
     }
@@ -39,9 +36,6 @@ class Handlers {
             return;
         }
 
-        this.logger.debug(
-            `webhook state for ${status.jibriId}-${status.status.health.healthStatus}-${status.status.busyStatus}`,
-        );
         await this.jibriTracker.track(status);
         res.sendStatus(200);
     }

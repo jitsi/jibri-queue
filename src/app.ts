@@ -1,15 +1,17 @@
 import bodyParser from 'body-parser';
+import fs from 'fs';
 import config from './config';
 import express from 'express';
 import Handlers from './handlers';
 import Redis from 'ioredis';
 import logger from './logger';
 import ASAPPubKeyFetcher from './asap';
-import jwt, { secretType } from 'express-jwt';
+import jwt from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker, RecorderRequestMeta } from './request_tracker';
 import * as meet from './meet_processor';
 
+const jwtSigningKey = fs.readFileSync(meet.TokenSigningKeyFile);
 const app = express();
 app.use(bodyParser.json());
 
@@ -38,7 +40,6 @@ const jibriTracker = new JibriTracker(logger, redisClient);
 const requestTracker = new RequestTracker(logger, redisClient);
 const h = new Handlers(requestTracker, jibriTracker);
 
-console.log(`CFDGA ${config.ProtectedApi}`);
 if (config.ProtectedApi === 'false') {
     logger.warn('starting in unprotected api mode');
     app.post('/job/recording', async (req, res, next) => {
@@ -115,7 +116,11 @@ if (config.ProtectedApi === 'false') {
     );
 }
 
-const meetProcessor = new meet.MeetProcessor(jibriTracker);
+const meetProcessor = new meet.MeetProcessor({
+    jibriTracker: jibriTracker,
+    signingKey: jwtSigningKey,
+});
+
 async function pollForRecorderReqs() {
     await requestTracker.processNextRequest(meetProcessor.requestProcessor);
     setTimeout(pollForRecorderReqs, 1000);

@@ -42,79 +42,63 @@ const h = new Handlers(requestTracker, jibriTracker);
 
 if (config.ProtectedApi === 'false') {
     logger.warn('starting in unprotected api mode');
-    app.post('/job/recording', async (req, res, next) => {
+}
+
+const asapFetcher = new ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
+app.post(
+    '/job/recording',
+    jwt({
+        secret: asapFetcher.pubKeyCallback,
+        audience: meet.AsapJwtAcceptedAud,
+        issuer: meet.AsapJwtAcceptedIss,
+        algorithms: ['RS256'],
+    }).unless((req) => {
+        return config.ProtectedApi === 'false';
+    }),
+    async (req, res, next) => {
         try {
             await h.requestRecordingJob(req, res);
         } catch (err) {
             next(err);
         }
-    });
-    app.post('/job/recording/cancel', async (req, res, next) => {
+    },
+);
+app.post(
+    '/job/recording/cancel',
+    jwt({
+        secret: asapFetcher.pubKeyCallback,
+        audience: meet.AsapJwtAcceptedAud,
+        issuer: meet.AsapJwtAcceptedIss,
+        algorithms: ['RS256'],
+    }).unless((req) => {
+        return config.ProtectedApi === 'false';
+    }),
+    async (req, res, next) => {
         try {
             await h.cancelRecordingJob(req, res);
         } catch (err) {
             next(err);
         }
-    });
-    app.post('/hook/v1/status', async (req, res, next) => {
+    },
+);
+app.post(
+    '/hook/v1/status',
+    jwt({
+        secret: asapFetcher.pubKeyCallback,
+        audience: meet.AsapJwtAcceptedAud,
+        issuer: meet.AsapJwtAcceptedHookIss,
+        algorithms: ['RS256'],
+    }).unless((req) => {
+        return config.ProtectedApi === 'false';
+    }),
+    async (req, res, next) => {
         try {
             await h.jibriStateWebhook(req, res);
         } catch (err) {
             next(err);
         }
-    });
-} else {
-    logger.debug('starting in protected api mode');
-    const asapFetcher = new ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
-    app.post(
-        '/job/recording',
-        jwt({
-            secret: asapFetcher.pubKeyCallback,
-            audience: meet.AsapJwtAcceptedAud,
-            issuer: meet.AsapJwtAcceptedIss,
-            algorithms: ['RS256'],
-        }),
-        async (req, res, next) => {
-            try {
-                await h.requestRecordingJob(req, res);
-            } catch (err) {
-                next(err);
-            }
-        },
-    );
-    app.post(
-        '/job/recording/cancel',
-        jwt({
-            secret: asapFetcher.pubKeyCallback,
-            audience: meet.AsapJwtAcceptedAud,
-            issuer: meet.AsapJwtAcceptedIss,
-            algorithms: ['RS256'],
-        }),
-        async (req, res, next) => {
-            try {
-                await h.cancelRecordingJob(req, res);
-            } catch (err) {
-                next(err);
-            }
-        },
-    );
-    app.post(
-        '/hook/v1/status',
-        jwt({
-            secret: asapFetcher.pubKeyCallback,
-            audience: meet.AsapJwtAcceptedAud,
-            issuer: meet.AsapJwtAcceptedHookIss,
-            algorithms: ['RS256'],
-        }),
-        async (req, res, next) => {
-            try {
-                await h.jibriStateWebhook(req, res);
-            } catch (err) {
-                next(err);
-            }
-        },
-    );
-}
+    },
+);
 
 const meetProcessor = new meet.MeetProcessor({
     jibriTracker: jibriTracker,

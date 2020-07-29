@@ -76,7 +76,7 @@ export class MeetProcessor {
     }
 
     async requestProcessor(req: RecorderRequestMeta): Promise<boolean> {
-        const jibriId = await this.jibriTracker.nextAvailable();
+        await this.jibriTracker.nextAvailable();
         const token = recorderToken(
             {
                 issuer: AsapJwtIss,

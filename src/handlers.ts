@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { JibriTracker, JibriState } from './jibri_tracker';
-import { RequestTracker, RecorderRequest } from './request_tracker';
+import { RequestTracker } from './request_tracker';
 
 class Handlers {
     private jibriTracker: JibriTracker;

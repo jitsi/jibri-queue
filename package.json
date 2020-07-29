@@ -20,6 +20,7 @@
     "node-cache": "^5.1.2",
     "redlock": "^4.1.0",
     "sha256": "^0.2.0",
+    "shortid": "^2.2.15",
     "winston": "^3.3.3"
   },
   "devDependencies": {
@@ -30,6 +31,7 @@
     "@types/node-cache": "^4.2.5",
     "@types/redlock": "^4.0.1",
     "@types/sha256": "^0.2.0",
+    "@types/shortid": "0.0.29",
     "@typescript-eslint/eslint-plugin": "^3.6.1",
     "@typescript-eslint/parser": "^3.6.1",
     "concurrently": "^5.2.0",

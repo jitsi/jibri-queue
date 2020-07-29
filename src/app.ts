@@ -1,4 +1,5 @@
 import bodyParser from 'body-parser';
+import * as context from './context';
 import fs from 'fs';
 import config from './config';
 import express from 'express';
@@ -8,20 +9,19 @@ import logger from './logger';
 import ASAPPubKeyFetcher from './asap';
 import jwt from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
-import { RequestTracker, RecorderRequestMeta } from './request_tracker';
+import { RequestTracker } from './request_tracker';
 import * as meet from './meet_processor';
 
 const jwtSigningKey = fs.readFileSync(meet.TokenSigningKeyFile);
 const app = express();
+
+app.use(context.injectContext);
+app.use(context.accessLogger);
 app.use(bodyParser.json());
 
 // TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
-// TODO: Add http logging middleware
 // TODO: metrics overview
-
-// TODO: JWT Creation for Lua Module API
-// TODO: JWT Creation for requestor
 
 // TODO: unittesting
 // TODO: doc strings???
@@ -52,7 +52,7 @@ app.post(
         audience: meet.AsapJwtAcceptedAud,
         issuer: meet.AsapJwtAcceptedIss,
         algorithms: ['RS256'],
-    }).unless((req) => {
+    }).unless(() => {
         return config.ProtectedApi === 'false';
     }),
     async (req, res, next) => {
@@ -70,7 +70,7 @@ app.post(
         audience: meet.AsapJwtAcceptedAud,
         issuer: meet.AsapJwtAcceptedIss,
         algorithms: ['RS256'],
-    }).unless((req) => {
+    }).unless(() => {
         return config.ProtectedApi === 'false';
     }),
     async (req, res, next) => {
@@ -88,7 +88,7 @@ app.post(
         audience: meet.AsapJwtAcceptedAud,
         issuer: meet.AsapJwtAcceptedHookIss,
         algorithms: ['RS256'],
-    }).unless((req) => {
+    }).unless(() => {
         return config.ProtectedApi === 'false';
     }),
     async (req, res, next) => {

@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 export default {
-    HTTPServerPort: process.env.PORT || 3000,
+    HTTPServerPort: process.env.PORT || 8080,
     LogLevel: process.env.LOG_LEVEL || 'info',
     RedisHost: process.env.REDIS_HOST || '127.0.0.1',
     RedisPort: process.env.REDIS_PORT || 6379,

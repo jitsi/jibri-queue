@@ -10,6 +10,9 @@ RUN npm ci --only=production
 # Copy built app
 COPY ./dist/. .
 
+# Copy the run script
+COPY ./build/run.sh .
+
 # Run app
 EXPOSE 8080
-CMD [ "node", "app.js"]
+CMD [ "./run.sh" ]

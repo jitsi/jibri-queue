@@ -19,6 +19,8 @@ app.use(context.injectContext);
 app.use(context.accessLogger);
 app.use(bodyParser.json());
 
+// TODO: don't log health check with access logging middleware
+// TODO: make express run in prod mode when deployed
 // TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
 // TODO: metrics overview

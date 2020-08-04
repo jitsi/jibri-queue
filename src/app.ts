@@ -14,13 +14,15 @@ import * as meet from './meet_processor';
 
 const jwtSigningKey = fs.readFileSync(meet.TokenSigningKeyFile);
 const app = express();
+const loggedPaths = ['/job/recording', 'job/recording/cancel', 'hook/v1/status'];
 
-app.use(context.injectContext);
-app.use(context.accessLogger);
+app.use(loggedPaths, context.injectContext);
+app.use(loggedPaths, context.accessLogger);
 app.use(bodyParser.json());
 
-// TODO: don't log health check with access logging middleware
+
 // TODO: make express run in prod mode when deployed
+// TODO: double check http://expressjs.com/en/advanced/best-practice-performance.html#production-best-practices-performance-and-reliability
 // TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
 // TODO: metrics overview

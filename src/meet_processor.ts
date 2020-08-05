@@ -5,7 +5,7 @@ import { sign } from 'jsonwebtoken';
 import { RecorderRequestMeta, Update, RecorderRequest } from './request_tracker';
 import { JibriTracker } from './jibri_tracker';
 import { recorderToken } from './token';
-import logger from './logger';
+import { Context } from './context';
 
 dotenv.config();
 
@@ -75,8 +75,8 @@ export class MeetProcessor {
         return auth;
     }
 
-    async requestProcessor(req: RecorderRequestMeta): Promise<boolean> {
-        await this.jibriTracker.nextAvailable();
+    async requestProcessor(ctx: Context, req: RecorderRequestMeta): Promise<boolean> {
+        await this.jibriTracker.nextAvailable(ctx);
         const token = recorderToken(
             {
                 issuer: AsapJwtIss,
@@ -99,6 +99,7 @@ export class MeetProcessor {
             token: token,
         };
 
+        ctx.logger.debug('sending response to signal api');
         const response = await got.post(req.externalApiUrl, {
             searchParams: { room: req.roomParam },
             headers: {
@@ -108,18 +109,19 @@ export class MeetProcessor {
         });
 
         if (response.statusCode != 200) {
+            ctx.logger.error(`unexpected response from signal api ${response.statusCode} - ${response.body}`);
             throw new Error('non-200 response from token response api');
         }
 
         return true;
     }
 
-    async updateProcessor(req: RecorderRequestMeta, position: number): Promise<boolean> {
+    async updateProcessor(ctx: Context, req: RecorderRequestMeta, position: number): Promise<boolean> {
         const now = Date.now();
         const created = parseInt(req.created, 10);
         const diffTime = Math.trunc(Math.abs((now - created) / 1000));
         if (diffTime >= 2) {
-            logger.debug(`request update ${req.requestId} position: ${position} time: ${diffTime}`);
+            ctx.logger.debug(`request update ${req.requestId} position: ${position} time: ${diffTime}`);
             const update: Update = {
                 conference: req.conference,
                 roomParam: req.roomParam,

@@ -6,7 +6,8 @@ import express from 'express';
 import Handlers from './handlers';
 import Redis from 'ioredis';
 import logger from './logger';
-import ASAPPubKeyFetcher from './asap';
+import * as asap from './asap';
+import shortid from 'shortid';
 import jwt from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker } from './request_tracker';
@@ -18,14 +19,11 @@ const loggedPaths = ['/job/recording', 'job/recording/cancel', 'hook/v1/status']
 
 app.use(loggedPaths, context.injectContext);
 app.use(loggedPaths, context.accessLogger);
-app.use(bodyParser.json());
+app.use(loggedPaths, asap.unauthErrMiddleware);
+app.use(loggedPaths, bodyParser.json());
 
-
-// TODO: make express run in prod mode when deployed
-// TODO: double check http://expressjs.com/en/advanced/best-practice-performance.html#production-best-practices-performance-and-reliability
-// TODO: Add custom error handler for express that handles jwt 401/403
 // TODO: Add prometheus stating middleware for each http
-// TODO: metrics overview
+// TODO: retry and metrics on outgoing http requests.
 
 // TODO: unittesting
 // TODO: doc strings???
@@ -40,15 +38,15 @@ const redisClient = new Redis({
     port: Number(config.RedisPort),
     password: config.RedisPassword,
 });
-const jibriTracker = new JibriTracker(logger, redisClient);
-const requestTracker = new RequestTracker(logger, redisClient);
+const jibriTracker = new JibriTracker(redisClient);
+const requestTracker = new RequestTracker(redisClient);
 const h = new Handlers(requestTracker, jibriTracker);
 
 if (config.ProtectedApi === 'false') {
     logger.warn('starting in unprotected api mode');
 }
 
-const asapFetcher = new ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
+const asapFetcher = new asap.ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
 app.post(
     '/job/recording',
     jwt({
@@ -110,13 +108,25 @@ const meetProcessor = new meet.MeetProcessor({
 });
 
 async function pollForRecorderReqs() {
-    await requestTracker.processNextRequest(meetProcessor.requestProcessor);
+    const start = Date.now();
+    const pollId = shortid.generate();
+    const pollLogger = logger.child({
+        id: pollId,
+    });
+    const ctx = new context.Context(pollLogger, start, pollId);
+    await requestTracker.processNextRequest(ctx, meetProcessor.requestProcessor);
     setTimeout(pollForRecorderReqs, 1000);
 }
 pollForRecorderReqs();
 
 async function pollForRequestUpdates() {
-    await requestTracker.processUpdates(meetProcessor.updateProcessor);
+    const start = Date.now();
+    const pollId = shortid.generate();
+    const pollLogger = logger.child({
+        id: pollId,
+    });
+    const ctx = new context.Context(pollLogger, start, pollId);
+    await requestTracker.processUpdates(ctx, meetProcessor.updateProcessor);
     setTimeout(pollForRequestUpdates, 3000);
 }
 pollForRequestUpdates();

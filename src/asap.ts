@@ -4,14 +4,13 @@ import sha256 from 'sha256';
 import NodeCache from 'node-cache';
 import { Request } from 'express';
 import { secretType } from 'express-jwt';
-import { Logger } from 'winston';
 
 export class ASAPPubKeyFetcher {
     private baseUrl: string;
     private ttl: number;
     private cache: NodeCache;
 
-    constructor(logger: Logger, baseUrl: string, ttl: number) {
+    constructor(baseUrl: string, ttl: number) {
         this.baseUrl = baseUrl;
         this.cache = new NodeCache({ stdTTL: ttl });
         this.pubKeyCallback = this.pubKeyCallback.bind(this);

@@ -46,7 +46,7 @@ if (config.ProtectedApi === 'false') {
     logger.warn('starting in unprotected api mode');
 }
 
-const asapFetcher = new asap.ASAPPubKeyFetcher(logger, meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
+const asapFetcher = new asap.ASAPPubKeyFetcher(meet.AsapPubKeyBaseUrl, meet.AsapPubKeyTTL);
 app.post(
     '/job/recording',
     jwt({

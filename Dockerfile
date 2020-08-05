@@ -15,4 +15,5 @@ COPY ./build/run.sh .
 
 # Run app
 EXPOSE 8080
+ENV NODE_ENV=production
 CMD [ "./run.sh" ]

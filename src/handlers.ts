@@ -16,12 +16,12 @@ class Handlers {
     }
 
     async requestRecordingJob(req: Request, res: Response): Promise<void> {
-        await this.requestTracker.request(req.body);
+        await this.requestTracker.request(req.context, req.body);
         res.sendStatus(200);
     }
 
     async cancelRecordingJob(req: Request, res: Response): Promise<void> {
-        await this.requestTracker.cancel(req.body.id);
+        await this.requestTracker.cancel(req.context, req.body.id);
         res.sendStatus(200);
     }
 
@@ -36,7 +36,7 @@ class Handlers {
             return;
         }
 
-        await this.jibriTracker.track(status);
+        await this.jibriTracker.track(req.context, status);
         res.sendStatus(200);
     }
 }

@@ -1,6 +1,7 @@
-import { Logger } from 'winston';
 import Redis from 'ioredis';
 import Redlock from 'redlock';
+import logger from './logger';
+import { Context } from './context';
 
 export interface RecorderRequest {
     conference: string;
@@ -22,11 +23,10 @@ export interface Update extends RecorderRequest {
     time: number;
 }
 
-export type Processor = (req: RecorderRequestMeta) => Promise<boolean>;
-export type UpdateProcessor = (req: RecorderRequest, position: number) => Promise<boolean>;
+export type Processor = (ctx: Context, req: RecorderRequestMeta) => Promise<boolean>;
+export type UpdateProcessor = (ctx: Context, req: RecorderRequest, position: number) => Promise<boolean>;
 
 export class RequestTracker {
-    private logger: Logger;
     private redisClient: Redis.Redis;
     private reqLock: Redlock;
 
@@ -43,8 +43,7 @@ export class RequestTracker {
     // the list before updates will be provided to requestor.
     static readonly updateDelay = 1; // time in seconds
 
-    constructor(logger: Logger, redisClient: Redis.Redis) {
-        this.logger = logger;
+    constructor(redisClient: Redis.Redis) {
         this.redisClient = redisClient;
         this.reqLock = new Redlock(
             // TODO: you should have one client for each independent redis node or cluster
@@ -57,7 +56,7 @@ export class RequestTracker {
             },
         );
         this.reqLock.on('clientError', (err) => {
-            this.logger.error('A reqLock redis error has occured:', err);
+            logger.error('A reqLock redis error has occured:', err);
         });
     }
 
@@ -65,9 +64,10 @@ export class RequestTracker {
         return `${RequestTracker.requestKeyPre}${id}`;
     }
 
-    async request(req: RecorderRequest): Promise<void> {
+    async request(ctx: Context, req: RecorderRequest): Promise<void> {
         const created = Date.now();
         const metaKey = this.metaKey(req.requestId);
+        ctx.logger.debug(`setting request data in redis ${metaKey} and ${RequestTracker.listKey}`);
         const ret = await this.redisClient
             .multi()
             .rpush(RequestTracker.listKey, req.requestId)
@@ -81,26 +81,30 @@ export class RequestTracker {
             .exec();
         for (const each of ret) {
             if (each[0]) {
+                ctx.logger.error(`setting request multi metadata: ${each[0]}`);
                 throw each[0];
             }
         }
     }
 
-    async cancel(id: string): Promise<void> {
-        const ret = await this.redisClient.multi().lrem(RequestTracker.listKey, 0, id).del(this.metaKey(id)).exec();
+    async cancel(ctx: Context, id: string): Promise<void> {
+        const metaKey = this.metaKey(id);
+        const ret = await this.redisClient.multi().lrem(RequestTracker.listKey, 0, id).del(metaKey).exec();
+        ctx.logger.debug(`removing request data in redis ${metaKey} and ${RequestTracker.listKey}`);
         for (const each of ret) {
             if (each[0]) {
+                ctx.logger.error(`cancel redis multi: ${each[0]}`);
                 throw each[0];
             }
         }
     }
 
-    async processNextRequest(processor: Processor): Promise<boolean> {
+    async processNextRequest(ctx: Context, processor: Processor): Promise<boolean> {
         let lock: Redlock.Lock = undefined;
         try {
             lock = await this.reqLock.lock(RequestTracker.processingKey, RequestTracker.processingTTL);
         } catch (err) {
-            this.logger.error(`error obtaining lock ${err}`);
+            ctx.logger.error(`error obtaining lock ${err}`);
             return false;
         }
 
@@ -110,12 +114,12 @@ export class RequestTracker {
             if (reqId != null) {
                 const m = await this.redisClient.hgetall(this.metaKey(reqId));
                 if (!m) {
-                    this.logger.warn(`no meta for ${reqId} - skipping processing`);
+                    ctx.logger.warn(`no meta for ${reqId} - skipping processing`);
                     return false;
                 }
                 const meta = <RecorderRequestMeta>(<unknown>m);
-                this.logger.debug(`servicing req ${meta.requestId}`);
-                const result = await processor(meta);
+                ctx.logger.debug(`servicing req ${meta.requestId}`);
+                const result = await processor(ctx, meta);
                 if (result) {
                     const ret = await this.redisClient
                         .multi()
@@ -130,26 +134,26 @@ export class RequestTracker {
                 }
             }
         } catch (err) {
-            this.logger.error(`processing request ${err}`);
+            ctx.logger.error(`processing request ${err}`);
         } finally {
             lock.unlock();
         }
         return result;
     }
 
-    async processUpdates(processor: UpdateProcessor): Promise<void> {
+    async processUpdates(ctx: Context, processor: UpdateProcessor): Promise<void> {
         const allJobs = await this.redisClient.lrange(RequestTracker.listKey, 0, -1);
         allJobs.forEach(async (reqId: string, index: number) => {
             try {
                 const m = await this.redisClient.hgetall(this.metaKey(reqId));
                 if (!m) {
-                    this.logger.warn(`no meta for ${reqId} - update skipped`);
+                    ctx.logger.warn(`no meta for ${reqId} - update skipped`);
                     return false;
                 }
                 const meta = <RecorderRequest>(<unknown>m);
-                await processor(meta, index);
+                await processor(ctx, meta, index);
             } catch (err) {
-                this.logger.error(`processing update ${err}`);
+                ctx.logger.error(`processing update ${err}`);
             }
         });
     }

@@ -15,7 +15,7 @@ import * as meet from './meet_processor';
 
 const jwtSigningKey = fs.readFileSync(meet.TokenSigningKeyFile);
 const app = express();
-const loggedPaths = ['/job/recording', 'job/recording/cancel', 'hook/v1/status'];
+const loggedPaths = ['/job/recording', '/job/recording/cancel', '/hook/v1/status'];
 
 app.use(loggedPaths, context.injectContext);
 app.use(loggedPaths, context.accessLogger);

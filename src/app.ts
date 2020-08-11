@@ -37,7 +37,13 @@ const redisClient = new Redis({
     host: config.RedisHost,
     port: Number(config.RedisPort),
     password: config.RedisPassword,
+    tls: {},
 });
+
+redisClient.on('error', (err) => {
+    logger.error('ioredis error:', err);
+});
+
 const jibriTracker = new JibriTracker(redisClient);
 const requestTracker = new RequestTracker(redisClient);
 const h = new Handlers(requestTracker, jibriTracker);

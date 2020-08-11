@@ -29,6 +29,7 @@ export class ASAPPubKeyFetcher {
         if (pubKey) {
             req.context.logger.debug('using pub key from cache');
             done(null, pubKey);
+            return;
         }
 
         req.context.logger.debug('fetching pub key from key server');
@@ -36,10 +37,12 @@ export class ASAPPubKeyFetcher {
             .then((pubKey) => {
                 this.cache.set(header.kid, pubKey);
                 done(null, pubKey);
+                return;
             })
             .catch((err) => {
                 req.context.logger.error(`obtaining asap pub ${err}`);
                 done(err);
+                return;
             });
     }
 }

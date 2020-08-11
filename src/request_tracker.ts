@@ -56,7 +56,7 @@ export class RequestTracker {
             },
         );
         this.reqLock.on('clientError', (err) => {
-            logger.error('A reqLock redis error has occured:', err);
+            logger.error(`A reqLock redis error has occured: ${err}`);
         });
     }
 
@@ -100,18 +100,22 @@ export class RequestTracker {
     }
 
     async processNextRequest(ctx: Context, processor: Processor): Promise<boolean> {
+        ctx.logger.debug('obtaining request lock in redis');
         let lock: Redlock.Lock = undefined;
         try {
             lock = await this.reqLock.lock(RequestTracker.processingKey, RequestTracker.processingTTL);
+            ctx.logger.debug('lock obtained');
         } catch (err) {
             ctx.logger.error(`error obtaining lock ${err}`);
             return false;
         }
 
-        const result = false;
+        let result = false;
         try {
+            ctx.logger.debug('obtaining next job id');
             const reqId = await this.redisClient.lindex(RequestTracker.listKey, 0);
             if (reqId != null) {
+                ctx.logger.debug(`processing req id ${reqId}`);
                 const m = await this.redisClient.hgetall(this.metaKey(reqId));
                 if (!m) {
                     ctx.logger.warn(`no meta for ${reqId} - skipping processing`);
@@ -119,7 +123,7 @@ export class RequestTracker {
                 }
                 const meta = <RecorderRequestMeta>(<unknown>m);
                 ctx.logger.debug(`servicing req ${meta.requestId}`);
-                const result = await processor(ctx, meta);
+                result = await processor(ctx, meta);
                 if (result) {
                     const ret = await this.redisClient
                         .multi()
@@ -132,6 +136,8 @@ export class RequestTracker {
                         }
                     }
                 }
+            } else {
+                ctx.logger.debug('no requests pending');
             }
         } catch (err) {
             ctx.logger.error(`processing request ${err}`);
@@ -143,6 +149,10 @@ export class RequestTracker {
 
     async processUpdates(ctx: Context, processor: UpdateProcessor): Promise<void> {
         const allJobs = await this.redisClient.lrange(RequestTracker.listKey, 0, -1);
+        if (allJobs.length == 0) {
+            ctx.logger.debug('no updates to process');
+            return;
+        }
         allJobs.forEach(async (reqId: string, index: number) => {
             try {
                 const m = await this.redisClient.hgetall(this.metaKey(reqId));

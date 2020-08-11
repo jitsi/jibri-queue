@@ -31,7 +31,7 @@ const requiredConfig: Array<number | string> = [
 
 requiredConfig.forEach((val, i) => {
     if (!val) {
-        throw new Error(`required meet processor config is messing - index:${i}`);
+        throw new Error(`required meet processor config is missing - index:${i}`);
     }
 });
 

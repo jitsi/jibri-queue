@@ -33,12 +33,22 @@ app.get('/health', (req: express.Request, res: express.Response) => {
     res.send('healthy!');
 });
 
-const redisClient = new Redis({
-    host: config.RedisHost,
-    port: Number(config.RedisPort),
-    password: config.RedisPassword,
-    tls: {},
-});
+let redisClient: Redis.Redis = undefined;
+if (config.RedisTlsEnabled === true) {
+    redisClient = new Redis({
+        host: config.RedisHost,
+        port: Number(config.RedisPort),
+        password: config.RedisPassword,
+        tls: {},
+    });
+} else {
+    logger.error('redis connection is not encrypted with tls');
+    redisClient = new Redis({
+        host: config.RedisHost,
+        port: Number(config.RedisPort),
+        password: config.RedisPassword,
+    });
+}
 
 redisClient.on('error', (err) => {
     logger.error('ioredis error:', err);

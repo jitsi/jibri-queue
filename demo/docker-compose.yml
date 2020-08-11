@@ -8,14 +8,24 @@ services:
    volumes:
     - $PWD/redis-data:/var/lib/redis
     - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
-
-#     networks:
-#       redis_net:
-#         ipv4_address: 172.28.1.4
-
-# networks:
-#   redis_net:
-#     ipam:
-#       driver: default
-#       config:
-#         - subnet: 172.28.0.0/16
+ queue:
+   # image: "103425057857.dkr.ecr.us-west-2.amazonaws.com/jitsi-vo/jibri-queue:0.0.3"
+   build: ../.
+   ports:
+    - "8080:8080"
+   environment:
+    - LOG_LEVEL=debug
+    - PROTECTED_API=true
+    - REDIS_HOST=redis
+    - REDIS_PASSWORD=demopw
+    - ASAP_PUB_KEY_BASE_URL=https://d4dv7jmo5uq1d.cloudfront.net/server/stage
+    - ASAP_JWT_ISS=jibri-queue
+    - ASAP_JWT_KID=jibri-queue-pilot-20200805
+    - ASAP_JWT_AUD=jitsi
+    - ASAP_JWT_ACCEPTED_AUD=jibri-queue
+    - ASAP_JWT_ACCEPTED_ISS=jitsi
+    - ASAP_JWT_ACCEPTED_HOOK_ISS=jibri
+    - TOKEN_SIGNING_KEY_FILE=/usr/local/private.pem
+    - REDIS_TLS_ENABLED=false
+   volumes:
+    - $PWD/private.pem:/usr/local/private.pem

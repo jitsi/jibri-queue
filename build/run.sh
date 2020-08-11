@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -8,4 +8,4 @@ if [ -f /usr/jitsi/pre-run.sh ]; then
     . /usr/jitsi/pre-run.sh
 fi
 
-node /usr/src/app/app.js
+exec node /usr/src/app/app.js

@@ -17,6 +17,7 @@ const env = envalid.cleanEnv(process.env, {
     ASAP_PUB_KEY_BASE_URL: envalid.str(),
     ASAP_JWT_ISS: envalid.str(),
     ASAP_JWT_KID: envalid.str(),
+    ASAP_JWT_AUD: envalid.str(),
     ASAP_JWT_ACCEPTED_AUD: envalid.str(),
     ASAP_JWT_ACCEPTED_ISS: envalid.str(),
     ASAP_JWT_ACCEPTED_HOOK_ISS: envalid.str(),
@@ -28,6 +29,7 @@ export const RecorderTokenExpSeconds = env.RECORDER_TOKEN_TTL_SECONDS;
 export const AsapPubKeyBaseUrl = env.ASAP_PUB_KEY_BASE_URL;
 export const AsapJwtIss = env.ASAP_JWT_ISS;
 export const AsapJwtKid = env.ASAP_JWT_KID;
+export const AsapJwtAud = env.ASAP_JWT_AUD;
 export const AsapJwtAcceptedAud = env.ASAP_JWT_ACCEPTED_AUD;
 export const AsapJwtAcceptedIss = env.ASAP_JWT_ACCEPTED_ISS;
 export const AsapJwtAcceptedHookIss = env.ASAP_JWT_ACCEPTED_HOOK_ISS;
@@ -64,7 +66,7 @@ export class MeetProcessor {
 
         const auth = sign({}, this.signingKey, {
             issuer: AsapJwtIss,
-            audience: 'jitsi',
+            audience: AsapJwtAud,
             algorithm: 'RS256',
             keyid: AsapJwtKid,
             expiresIn: 60 * 60, // 1 hour

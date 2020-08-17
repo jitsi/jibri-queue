@@ -36,13 +36,20 @@ export function injectContext(req: Request, res: Response, next: NextFunction): 
 // accessLogger logs summary data for each http api call. It makes use of the
 // context logger.
 export function accessLogger(req: Request, res: Response, next: NextFunction): void {
+    let logged = false;
+    const accessLog = function () {
+        if (!logged) {
+            logged = true;
+            req.context.logger.info('', {
+                m: req.method,
+                u: req.originalUrl,
+                s: res.statusCode,
+                d: Math.abs(Date.now() - req.context.start),
+            });
+        }
+    };
+
+    res.on('finish', accessLog);
+    res.on('close', accessLog);
     next();
-    const now = Date.now();
-    const diffTime = Math.abs(now - req.context.start);
-    req.context.logger.info('', {
-        m: req.method,
-        u: req.originalUrl,
-        s: res.statusCode,
-        d: `${diffTime}`,
-    });
 }

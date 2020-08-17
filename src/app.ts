@@ -6,11 +6,13 @@ import express from 'express';
 import Handlers from './handlers';
 import Redis from 'ioredis';
 import logger from './logger';
+import * as stats from './stats';
 import * as asap from './asap';
 import shortid from 'shortid';
 import jwt from 'express-jwt';
 import { JibriTracker } from './jibri_tracker';
 import { RequestTracker } from './request_tracker';
+import * as promClient from 'prom-client';
 import * as meet from './meet_processor';
 
 const jwtSigningKey = fs.readFileSync(meet.TokenSigningKeyFile);
@@ -19,18 +21,25 @@ const loggedPaths = ['/job/recording', '/job/recording/cancel', '/hook/v1/status
 
 app.use(loggedPaths, context.injectContext);
 app.use(loggedPaths, context.accessLogger);
+app.use(loggedPaths, stats.middleware);
 app.use(loggedPaths, asap.unauthErrMiddleware);
 app.use(loggedPaths, bodyParser.json());
 
-// TODO: Add prometheus stating middleware for each http
 // TODO: retry and metrics on outgoing http requests.
-
 // TODO: unittesting
-// TODO: doc strings???
 // TODO: readme updates and docker compose allthethings
 
 app.get('/health', (req: express.Request, res: express.Response) => {
     res.send('healthy!');
+});
+
+app.get('/metrics', async (req: express.Request, res: express.Response) => {
+    try {
+        res.set('Content-Type', promClient.register.contentType);
+        res.end(promClient.register.metrics());
+    } catch (err) {
+        res.status(500).end(err);
+    }
 });
 
 const redisOptions: Redis.RedisOptions = {

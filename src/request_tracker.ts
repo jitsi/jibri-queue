@@ -67,7 +67,7 @@ export class RequestTracker {
     async request(ctx: Context, req: RecorderRequest): Promise<void> {
         const created = Date.now();
         const metaKey = this.metaKey(req.requestId);
-        ctx.logger.debug(`setting request data in redis ${metaKey} and ${RequestTracker.listKey}`);
+        ctx.logger.info(`setting request data in redis ${metaKey} and ${RequestTracker.listKey}`);
         const ret = await this.redisClient
             .multi()
             .rpush(RequestTracker.listKey, req.requestId)
@@ -90,7 +90,7 @@ export class RequestTracker {
     async cancel(ctx: Context, id: string): Promise<void> {
         const metaKey = this.metaKey(id);
         const ret = await this.redisClient.multi().lrem(RequestTracker.listKey, 0, id).del(metaKey).exec();
-        ctx.logger.debug(`removing request data in redis ${metaKey} and ${RequestTracker.listKey}`);
+        ctx.logger.info(`removing request data in redis ${metaKey} and ${RequestTracker.listKey}`);
         for (const each of ret) {
             if (each[0]) {
                 ctx.logger.error(`cancel redis multi: ${each[0]}`);
@@ -118,23 +118,22 @@ export class RequestTracker {
                 ctx.logger.debug(`processing req id ${reqId}`);
                 const m = await this.redisClient.hgetall(this.metaKey(reqId));
                 if (!m) {
-                    ctx.logger.warn(`no meta for ${reqId} - skipping processing`);
-                    return false;
+                    await this.cancel(ctx, reqId);
+                    return true;
                 }
                 const meta = <RecorderRequestMeta>(<unknown>m);
-                ctx.logger.debug(`servicing req ${meta.requestId}`);
-                result = await processor(ctx, meta);
-                if (result) {
-                    const ret = await this.redisClient
-                        .multi()
-                        .lpop(RequestTracker.listKey)
-                        .del(this.metaKey(reqId))
-                        .exec();
-                    for (const each of ret) {
-                        if (each[0]) {
-                            throw each[0];
-                        }
+                try {
+                    ctx.logger.debug(`servicing req ${meta.requestId}`);
+                    result = await processor(ctx, meta);
+                } catch (err) {
+                    if (err.name === 'CanceledError') {
+                        this.cancel(ctx, reqId);
+                        return true;
                     }
+                    throw err;
+                }
+                if (result) {
+                    await this.cancel(ctx, reqId);
                 }
             } else {
                 ctx.logger.debug('no requests pending');
@@ -161,7 +160,15 @@ export class RequestTracker {
                     return false;
                 }
                 const meta = <RecorderRequest>(<unknown>m);
-                await processor(ctx, meta, index);
+                try {
+                    await processor(ctx, meta, index);
+                } catch (err) {
+                    if (err.name === 'CanceledError') {
+                        this.cancel(ctx, reqId);
+                        return true;
+                    }
+                    throw err;
+                }
             } catch (err) {
                 ctx.logger.error(`processing update ${err}`);
             }

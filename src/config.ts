@@ -1,13 +1,24 @@
 import * as dotenv from 'dotenv';
+import envalid from 'envalid';
 
 dotenv.config();
 
+const env = envalid.cleanEnv(process.env, {
+    PORT: envalid.num({ default: 8080 }),
+    LOG_LEVEL: envalid.str({ default: 'info' }),
+    REDIS_HOST: envalid.str({ default: '127.0.0.1' }),
+    REDIS_PORT: envalid.num({ default: 6379 }),
+    REDIS_PASSWORD: envalid.str(),
+    REDIS_TLS_ENABLED: envalid.bool({ default: true }),
+    PROTECTED_API: envalid.bool({ default: true }),
+});
+
 export default {
-    HTTPServerPort: process.env.PORT || 8080,
-    LogLevel: process.env.LOG_LEVEL || 'info',
-    RedisHost: process.env.REDIS_HOST || '127.0.0.1',
-    RedisPort: process.env.REDIS_PORT || 6379,
-    RedisPassword: process.env.REDIS_PASSWORD,
-    RedisTlsEnabled: process.env.REDIS_TLS_ENABLED || true,
-    ProtectedApi: process.env.PROTECTED_API || true,
+    HTTPServerPort: env.PORT,
+    LogLevel: env.LOG_LEVEL,
+    RedisHost: env.REDIS_HOST,
+    RedisPort: env.REDIS_PORT,
+    RedisPassword: env.REDIS_PASSWORD,
+    RedisTlsEnabled: env.REDIS_TLS_ENABLED,
+    ProtectedApi: env.PROTECTED_API,
 };

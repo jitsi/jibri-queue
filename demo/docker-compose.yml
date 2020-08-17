@@ -8,14 +8,15 @@ services:
    volumes:
     - $PWD/redis-data:/var/lib/redis
     - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
+ httpbin:
+   image: kennethreitz/httpbin
  queue:
-   # image: "103425057857.dkr.ecr.us-west-2.amazonaws.com/jitsi-vo/jibri-queue:0.0.3"
    build: ../.
    ports:
     - "8080:8080"
    environment:
-    - LOG_LEVEL=debug
-    - PROTECTED_API=true
+    - LOG_LEVEL=info
+    - PROTECTED_API=false
     - REDIS_HOST=redis
     - REDIS_PASSWORD=demopw
     - ASAP_PUB_KEY_BASE_URL=https://d4dv7jmo5uq1d.cloudfront.net/server/stage

@@ -102,6 +102,8 @@ export class JibriTracker {
                 continue;
             }
         }
-        throw new Error('no recorder');
+        const err = new Error('no recorders available');
+        err.name = 'RecorderUnavailableError';
+        throw err;
     }
 }

@@ -61,7 +61,7 @@ export function unauthErrMiddleware(
     next: express.NextFunction,
 ): void {
     if (err.name === 'UnauthorizedError') {
-        req.context.logger.info(`unauthorized token{err}`);
+        req.context.logger.info(`unauthorized token ${err}`);
         res.status(401).send('invalid token...');
     }
     next();

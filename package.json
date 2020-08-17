@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "dotenv": "^8.2.0",
+    "envalid": "^6.0.2",
     "express": "^4.17.1",
     "express-jwt": "^6.0.0",
     "got": "^11.5.1",

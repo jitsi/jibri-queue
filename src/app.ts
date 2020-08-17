@@ -33,32 +33,33 @@ app.get('/health', (req: express.Request, res: express.Response) => {
     res.send('healthy!');
 });
 
-let redisClient: Redis.Redis = undefined;
-if (config.RedisTlsEnabled === true) {
-    redisClient = new Redis({
-        host: config.RedisHost,
-        port: Number(config.RedisPort),
-        password: config.RedisPassword,
-        tls: {},
-    });
+const redisOptions: Redis.RedisOptions = {
+    host: config.RedisHost,
+    port: Number(config.RedisPort),
+    password: config.RedisPassword,
+};
+
+if (config.RedisTlsEnabled) {
+    redisOptions.tls = {};
 } else {
     logger.error('redis connection is not encrypted with tls');
-    redisClient = new Redis({
-        host: config.RedisHost,
-        port: Number(config.RedisPort),
-        password: config.RedisPassword,
-    });
 }
 
+const redisClient: Redis.Redis = new Redis(redisOptions);
 redisClient.on('error', (err) => {
     logger.error('ioredis error:', err);
+});
+
+// TODO: remove this for prod or when we figure out cleanup.
+redisClient.del('jibri:request:pending').then(() => {
+    logger.error('DELETING ALL REQUESTS');
 });
 
 const jibriTracker = new JibriTracker(redisClient);
 const requestTracker = new RequestTracker(redisClient);
 const h = new Handlers(requestTracker, jibriTracker);
 
-if (config.ProtectedApi === 'false') {
+if (!config.ProtectedApi) {
     logger.warn('starting in unprotected api mode');
 }
 
@@ -71,7 +72,7 @@ app.post(
         issuer: meet.AsapJwtAcceptedIss,
         algorithms: ['RS256'],
     }).unless(() => {
-        return config.ProtectedApi === 'false';
+        return !config.ProtectedApi;
     }),
     async (req, res, next) => {
         try {
@@ -89,7 +90,7 @@ app.post(
         issuer: meet.AsapJwtAcceptedIss,
         algorithms: ['RS256'],
     }).unless(() => {
-        return config.ProtectedApi === 'false';
+        return !config.ProtectedApi;
     }),
     async (req, res, next) => {
         try {
@@ -107,7 +108,7 @@ app.post(
         issuer: meet.AsapJwtAcceptedHookIss,
         algorithms: ['RS256'],
     }).unless(() => {
-        return config.ProtectedApi === 'false';
+        return !config.ProtectedApi;
     }),
     async (req, res, next) => {
         try {

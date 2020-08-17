@@ -28,10 +28,12 @@ class Handlers {
     async jibriStateWebhook(req: Request, res: Response): Promise<void> {
         const status: JibriState = req.body;
         if (!status.status) {
+            req.context.logger.warn(`jibri webhook missing status`);
             res.sendStatus(400);
             return;
         }
         if (!status.jibriId) {
+            req.context.logger.warn(`jibri webhook missing jibri id`);
             res.sendStatus(400);
             return;
         }
